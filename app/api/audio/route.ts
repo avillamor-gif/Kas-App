@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { getSessionUser } from "@/lib/session";
 import { supabase } from "@/lib/supabase";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await getSessionUser(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const formData = await req.formData();
   const file = formData.get("audio") as File | null;
@@ -17,13 +17,13 @@ export async function POST(req: Request) {
 
   const audioDir = path.join(process.cwd(), "public", "audio");
   await mkdir(audioDir, { recursive: true });
-  const filename = `${session.user.id}-${Date.now()}.webm`;
+  const filename = `${user.id}-${Date.now()}.webm`;
   await writeFile(path.join(audioDir, filename), buffer);
 
   const url = `/audio/${filename}`;
 
   const { data, error } = await supabase.from("AudioClip").insert({
-    userId: session.user.id,
+    userId: user.id,
     url,
     duration: null,
   }).select("id").single();
@@ -34,11 +34,10 @@ export async function POST(req: Request) {
 }
 
 export async function GET(req: Request) {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await getSessionUser(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const sessionUser = session.user as { id: string; role: string };
-  if (sessionUser.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (user.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { searchParams } = new URL(req.url);
   const userId = searchParams.get("userId");

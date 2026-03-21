@@ -1,12 +1,10 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { getSessionUser } from "@/lib/session";
 import { supabase } from "@/lib/supabase";
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const user = await getSessionUser(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
   const { lat, lng, accuracy, speed, heading, altitude } = body;
@@ -16,7 +14,7 @@ export async function POST(req: Request) {
   }
 
   const { data, error } = await supabase.from("Location").insert({
-    userId: session.user.id,
+    userId: user.id,
     lat, lng,
     accuracy: accuracy ?? null,
     speed: speed ?? null,
@@ -29,19 +27,16 @@ export async function POST(req: Request) {
   await supabase.from("User").update({
     lastSeen: new Date().toISOString(),
     isTracking: true,
-  }).eq("id", session.user.id);
+  }).eq("id", user.id);
 
   return NextResponse.json({ ok: true, id: data.id });
 }
 
-export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export async function GET(req: Request) {
+  const user = await getSessionUser(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const sessionUser = session.user as { id: string; role: string };
-  if (sessionUser.role !== "admin") {
+  if (user.role !== "admin") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

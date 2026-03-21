@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { getSessionUser } from "@/lib/session";
 import { supabase } from "@/lib/supabase";
 import bcrypt from "bcryptjs";
 
-export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export async function GET(req: Request) {
+  const user = await getSessionUser(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const sessionUser = session.user as { id: string; role: string };
-  if (sessionUser.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (user.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { data, error } = await supabase
     .from("User")
@@ -20,11 +19,10 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await getSessionUser(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const sessionUser = session.user as { id: string; role: string };
-  if (sessionUser.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (user.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { name, email, password, role, color } = await req.json();
   if (!name || !email || !password) return NextResponse.json({ error: "name, email, password required" }, { status: 400 });

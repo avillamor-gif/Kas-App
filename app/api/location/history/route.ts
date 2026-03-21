@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { getSessionUser } from "@/lib/session";
 import { supabase } from "@/lib/supabase";
 
 export async function GET(req: Request) {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await getSessionUser(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const sessionUser = session.user as { id: string; role: string };
-  if (sessionUser.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (user.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { searchParams } = new URL(req.url);
   const userId = searchParams.get("userId");
