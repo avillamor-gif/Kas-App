@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/app/generated/prisma
+
+# prisma sqlite (local dev only)
+/prisma/dev.db
+/prisma/dev.db-journal
+
+# audio uploads (runtime generated)
+/public/audio/
