@@ -16,6 +16,12 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "KAS Family Tracker",
   description: "Real-time family location and safety monitoring",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "KAS Tracker",
+  },
 };
 
 export const viewport: Viewport = {
