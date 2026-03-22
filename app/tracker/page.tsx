@@ -84,8 +84,8 @@ export default function TrackerPage() {
     try {
       const res = await fetch("/api/auth/magic-token", { method: "POST" });
       const json = await res.json();
-      if (json.token) {
-        setMagicUrl(`https://kas-app.vercel.app/api/auth/magic?token=${json.token}`);
+      if (json.url) {
+        setMagicUrl(json.url);
       }
     } catch {
       // silently fail — QR will show error state
