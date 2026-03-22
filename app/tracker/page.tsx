@@ -24,6 +24,7 @@ import {
   Radio,
   QrCode,
   Smartphone,
+  Lock,
 } from "lucide-react";
 
 interface BeforeInstallPromptEvent extends Event {
@@ -55,16 +56,30 @@ export default function TrackerPage() {
   const [magicUrl, setMagicUrl] = useState<string | null>(null);
   const [magicUrlLoading, setMagicUrlLoading] = useState(false);
   const [isCameraRecording, setIsCameraRecording] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [isPwa, setIsPwa] = useState(false);
+  const [sleepLocked, setSleepLocked] = useState(false);
+  const sleepLockPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Detect if running as installed PWA (standalone mode)
+  useEffect(() => {
+    const standalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      (window.navigator as { standalone?: boolean }).standalone === true;
+    setIsPwa(standalone);
+  }, []);
 
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const cameraRecorderRef = useRef<MediaRecorder | null>(null);
   const cameraIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Fetch display name from Supabase session
+  // Fetch user info from Supabase session
   useEffect(() => {
     supabaseBrowser.auth.getUser().then(({ data: { user } }) => {
-      if (user?.user_metadata?.name) setUserName(user.user_metadata.name as string);
-      else if (user?.email) setUserName(user.email.split("@")[0]);
+      if (!user) return;
+      setUserId(user.id);
+      if (user.user_metadata?.name) setUserName(user.user_metadata.name as string);
+      else if (user.email) setUserName(user.email.split("@")[0]);
     });
   }, []);
 
@@ -277,6 +292,23 @@ export default function TrackerPage() {
     setIsCameraRecording(false);
   }, []);
 
+  // Poll admin sleep-lock every 10s while tracking is active
+  const startSleepLockPoll = useCallback((uid: string) => {
+    const check = async () => {
+      try {
+        const res = await fetch(`/api/users/${uid}/sleep-lock`);
+        if (res.ok) { const { sleepLocked: locked } = await res.json(); setSleepLocked(locked); }
+      } catch { /* ignore */ }
+    };
+    check();
+    sleepLockPollRef.current = setInterval(check, 10_000);
+  }, []);
+
+  const stopSleepLockPoll = useCallback(() => {
+    if (sleepLockPollRef.current) clearInterval(sleepLockPollRef.current);
+    setSleepLocked(false);
+  }, []);
+
   const activate = useCallback(async () => {
     setError("");
 
@@ -316,14 +348,18 @@ export default function TrackerPage() {
     // Start camera recording
     await startCameraRecordingCycle();
 
-    addLog("📱 Screen can sleep — tracking continues in background");
-  }, [addLog, sendLocation, startRecordingCycle, startCameraRecordingCycle]);
+    // Start polling admin sleep-lock
+    if (userId) startSleepLockPoll(userId);
+
+    addLog("📱 Tracking active — screen may sleep");
+  }, [addLog, sendLocation, startRecordingCycle, startCameraRecordingCycle, startSleepLockPoll, stopSleepLockPoll, userId]);
 
   const deactivate = useCallback(async () => {
     if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
     if (locationIntervalRef.current) clearInterval(locationIntervalRef.current);
     stopRecordingCycle();
     stopCameraRecordingCycle();
+    stopSleepLockPoll();
 
     await fetch("/api/tracking", {
       method: "POST",
@@ -334,20 +370,101 @@ export default function TrackerPage() {
     setStatus("idle");
     setCoords(null);
     addLog("🔴 Tracker deactivated");
-  }, [addLog, stopRecordingCycle, stopCameraRecordingCycle]);
+  }, [addLog, stopRecordingCycle, stopCameraRecordingCycle, stopSleepLockPoll]);
 
-  // Clean up on unmount
   useEffect(() => {
     return () => {
       if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
       if (locationIntervalRef.current) clearInterval(locationIntervalRef.current);
       if (recordingIntervalRef.current) clearInterval(recordingIntervalRef.current);
       if (cameraIntervalRef.current) clearInterval(cameraIntervalRef.current);
+      if (sleepLockPollRef.current) clearInterval(sleepLockPollRef.current);
       if (cameraStreamRef.current) cameraStreamRef.current.getTracks().forEach((t) => t.stop());
     };
   }, []);
 
   const isActive = status === "active";
+
+  // ─── PWA Mobile UI ──────────────────────────────────────────────────────────
+  // When running as installed PWA, show only START/STOP + status dots.
+  if (isPwa) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex flex-col select-none">
+
+        {/* Sleep lock overlay — full black screen, admin-controlled */}
+        {sleepLocked && isActive && (
+          <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center gap-4">
+            <Lock className="w-10 h-10 text-gray-700" />
+            <p className="text-gray-700 text-sm">Screen locked by administrator</p>
+          </div>
+        )}
+
+        <header className="flex items-center justify-between px-4 py-3 border-b border-gray-800 shrink-0">
+          <div className="flex items-center gap-2">
+            <Satellite className="w-4 h-4 text-blue-400" />
+            <span className="text-white font-semibold text-sm">KAS Tracker</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-gray-500 text-xs">{userName}</span>
+            <button onClick={handleSignOut} className="text-gray-600 hover:text-white transition">
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
+        </header>
+
+        <main className="flex-1 flex flex-col items-center justify-center gap-8 px-4">
+          <button
+            onClick={isActive ? deactivate : activate}
+            className={`w-52 h-52 rounded-full flex flex-col items-center justify-center gap-3 shadow-2xl border-4 transition-all duration-300 active:scale-95 ${
+              isActive
+                ? "bg-red-600 border-red-400 shadow-red-900"
+                : "bg-blue-600 border-blue-400 shadow-blue-900"
+            }`}
+          >
+            {isActive ? (
+              <><PowerOff className="w-16 h-16 text-white" /><span className="text-white text-base font-bold tracking-widest">STOP</span></>
+            ) : (
+              <><Power className="w-16 h-16 text-white" /><span className="text-white text-base font-bold tracking-widest">START</span></>
+            )}
+          </button>
+
+          <div className="flex gap-8">
+            <div className="flex flex-col items-center gap-1.5">
+              <div className={`w-3 h-3 rounded-full ${coords ? "bg-green-400 animate-pulse" : "bg-gray-700"}`} />
+              <MapPin className="w-5 h-5 text-gray-500" />
+              <span className="text-gray-600 text-xs">GPS</span>
+            </div>
+            <div className="flex flex-col items-center gap-1.5">
+              <div className={`w-3 h-3 rounded-full ${isRecording ? "bg-red-400 animate-pulse" : "bg-gray-700"}`} />
+              {isRecording ? <Mic className="w-5 h-5 text-red-400" /> : <MicOff className="w-5 h-5 text-gray-500" />}
+              <span className="text-gray-600 text-xs">Audio</span>
+            </div>
+            <div className="flex flex-col items-center gap-1.5">
+              <div className={`w-3 h-3 rounded-full ${isCameraRecording ? "bg-purple-400 animate-pulse" : "bg-gray-700"}`} />
+              {isCameraRecording ? <Camera className="w-5 h-5 text-purple-400" /> : <CameraOff className="w-5 h-5 text-gray-500" />}
+              <span className="text-gray-600 text-xs">Camera</span>
+            </div>
+          </div>
+
+          {coords && (
+            <p className="text-gray-700 font-mono text-xs text-center">
+              {coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}
+              {coords.accuracy ? ` ±${Math.round(coords.accuracy)}m` : ""}
+            </p>
+          )}
+          {error && <p className="text-red-400 text-xs text-center max-w-xs">{error}</p>}
+        </main>
+
+        {log.length > 0 && (
+          <div className="border-t border-gray-900 px-4 py-2">
+            {log.slice(0, 3).map((entry, i) => (
+              <p key={i} className="text-gray-700 text-[10px] font-mono">{entry}</p>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-950 flex flex-col">
@@ -620,25 +737,19 @@ export default function TrackerPage() {
           }`}
         >
           {isActive ? (
-            <>
-              <PowerOff className="w-10 h-10 text-white" />
-              <span className="text-white text-xs font-bold">STOP</span>
-            </>
+            <><PowerOff className="w-10 h-10 text-white" /><span className="text-white text-xs font-bold">STOP</span></>
           ) : (
-            <>
-              <Power className="w-10 h-10 text-white" />
-              <span className="text-white text-xs font-bold">START</span>
-            </>
+            <><Power className="w-10 h-10 text-white" /><span className="text-white text-xs font-bold">START</span></>
           )}
         </button>
 
         {/* Download App button */}
         <button
-          onClick={handleInstall}
-          className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition"
-        >
-          <Download className="w-4 h-4 text-blue-400" />
-          Download App
+            onClick={handleInstall}
+            className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition"
+          >
+            <Download className="w-4 h-4 text-blue-400" />
+            Download App
         </button>
 
         {/* Status indicators */}
@@ -681,7 +792,7 @@ export default function TrackerPage() {
           </div>
         )}
 
-        {/* Consent notice */}
+        {/* Consent notice — desktop only */}
         {!isActive && (
           <p className="text-gray-600 text-xs text-center max-w-xs pb-2">
             By activating, you consent to sharing your real-time location, audio,

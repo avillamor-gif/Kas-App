@@ -16,6 +16,8 @@ import {
   Shield,
   ChevronRight,
   History,
+  Lock,
+  Unlock,
 } from "lucide-react";
 import type { MemberLocation } from "@/components/LiveMap";
 
@@ -299,6 +301,7 @@ function MembersTab({ onRefresh }: { onRefresh: () => void }) {
   const [users, setUsers] = useState<{
     id: string; name: string; email: string; role: string;
     color: string; isTracking: boolean; lastSeen: string | null; createdAt: string;
+    sleepLocked: boolean;
   }[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", password: "", role: "member", color: "#3B82F6" });
@@ -331,6 +334,15 @@ function MembersTab({ onRefresh }: { onRefresh: () => void }) {
       fetchUsers();
       onRefresh();
     }
+  };
+
+  const handleToggleSleepLock = async (id: string, current: boolean) => {
+    await fetch(`/api/users/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sleepLocked: !current }),
+    });
+    fetchUsers();
   };
 
   const handleDelete = async (id: string, name: string) => {
@@ -484,6 +496,18 @@ function MembersTab({ onRefresh }: { onRefresh: () => void }) {
                 </p>
               )}
             </div>
+            <button
+              onClick={() => handleToggleSleepLock(u.id, u.sleepLocked)}
+              title={u.sleepLocked ? "Unlock screen" : "Lock screen"}
+              className={`transition text-xs shrink-0 px-2 py-1 rounded-lg flex items-center gap-1 ${
+                u.sleepLocked
+                  ? "bg-orange-900/60 text-orange-300 hover:bg-orange-800"
+                  : "bg-gray-800 text-gray-500 hover:text-orange-300 hover:bg-gray-700"
+              }`}
+            >
+              {u.sleepLocked ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
+              {u.sleepLocked ? "Locked" : "Lock"}
+            </button>
             <button
               onClick={() => handleDelete(u.id, u.name)}
               className="text-gray-600 hover:text-red-400 transition text-xs shrink-0"

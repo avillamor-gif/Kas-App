@@ -10,13 +10,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params;
   if (user.role !== "admin" && user.id !== id) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const { name, email, password, role, color } = await req.json();
+  const { name, email, password, role, color, sleepLocked } = await req.json();
   const data: Record<string, unknown> = {};
   if (name) data.name = name;
   if (email && user.role === "admin") data.email = email;
   if (password) data.password = await bcrypt.hash(password, 12);
   if (role && user.role === "admin") data.role = role;
   if (color && user.role === "admin") data.color = color;
+  if (typeof sleepLocked === "boolean" && user.role === "admin") data.sleepLocked = sleepLocked;
 
   const { data: updated, error } = await supabase.from("User").update(data).eq("id", id)
     .select("id, name, email, role, color").single();
