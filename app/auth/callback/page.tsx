@@ -1,13 +1,9 @@
 "use client";
 
-// This page handles the Supabase magic-link redirect.
-// Supabase sends the user back here with #access_token=...&refresh_token=... in the URL fragment.
-// We exchange those tokens for a server-side cookie session via the Supabase SSR client,
-// then redirect to /tracker.
-
 import { useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
+import { Shield } from "lucide-react";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -18,30 +14,31 @@ export default function AuthCallbackPage() {
   const router = useRouter();
 
   useEffect(() => {
-    // Parse the hash fragment
     const hash = window.location.hash.substring(1);
     const params = new URLSearchParams(hash);
     const accessToken = params.get("access_token");
     const refreshToken = params.get("refresh_token");
 
     if (accessToken && refreshToken) {
-      // Set the session in the browser client — this stores the tokens in cookies
       supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken }).then(() => {
-        // Go to /install so the browser prompts "Add to Home Screen" before opening /tracker
-        router.replace("/install");
+        router.replace("/tracker");
       });
     } else {
-      // No tokens — maybe already logged in, or error
-      router.replace("/install");
+      router.replace("/tracker");
     }
-  }, [router]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-      <div className="flex flex-col items-center gap-4">
-        <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-        <p className="text-gray-400 text-sm">Signing you in…</p>
+    <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center gap-6">
+      <div className="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center shadow-xl shadow-blue-900">
+        <Shield className="w-8 h-8 text-white" />
       </div>
+      <div className="flex flex-col items-center gap-2">
+        <p className="text-white font-semibold text-sm">KAS Tracker</p>
+        <p className="text-gray-500 text-xs">Signing you in…</p>
+      </div>
+      <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
     </div>
   );
 }
