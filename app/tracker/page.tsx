@@ -52,6 +52,8 @@ export default function TrackerPage() {
   const [showInstallGuide, setShowInstallGuide] = useState(false);
   const [showExplainer, setShowExplainer] = useState(true);
   const [showQr, setShowQr] = useState(false);
+  const [magicUrl, setMagicUrl] = useState<string | null>(null);
+  const [magicUrlLoading, setMagicUrlLoading] = useState(false);
   const [isCameraRecording, setIsCameraRecording] = useState(false);
 
   const cameraStreamRef = useRef<MediaStream | null>(null);
@@ -70,6 +72,26 @@ export default function TrackerPage() {
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/login");
     router.refresh();
+  };
+
+  const handleOpenQr = async () => {
+    const next = !showQr;
+    setShowQr(next);
+    if (!next) return;
+    // Regenerate a fresh token every time the section is opened
+    setMagicUrl(null);
+    setMagicUrlLoading(true);
+    try {
+      const res = await fetch("/api/auth/magic-token", { method: "POST" });
+      const json = await res.json();
+      if (json.token) {
+        setMagicUrl(`https://kas-app.vercel.app/api/auth/magic?token=${json.token}`);
+      }
+    } catch {
+      // silently fail — QR will show error state
+    } finally {
+      setMagicUrlLoading(false);
+    }
   };
 
   const watchIdRef = useRef<number | null>(null);
@@ -515,7 +537,7 @@ export default function TrackerPage() {
         {/* QR Code card — collapsible */}
         <div className="w-full max-w-2xl">
           <button
-            onClick={() => setShowQr((s) => !s)}
+            onClick={handleOpenQr}
             className="w-full flex items-center justify-between bg-violet-950/60 border border-violet-800 rounded-2xl px-4 py-3 text-left"
           >
             <div className="flex items-center gap-2">
@@ -530,31 +552,53 @@ export default function TrackerPage() {
           {showQr && (
             <div className="bg-gray-900 border border-violet-800 border-t-0 rounded-b-2xl px-4 pb-6 pt-4 flex flex-col items-center gap-4">
               <p className="text-gray-400 text-xs text-center max-w-sm leading-relaxed">
-                Point your phone camera at the QR code below. It will open the KAS Tracker page in your browser where you can install the app and grant all required permissions.
+                This QR code is <strong className="text-violet-300">unique to your account</strong>. Scanning it will open KAS Tracker on your phone and automatically log you in — no password needed. It expires in <strong className="text-white">24 hours</strong> and can only be used once.
               </p>
-              <div className="bg-white rounded-2xl p-4 shadow-lg">
-                <QRCodeSVG
-                  value="https://kas-app.vercel.app/tracker"
-                  size={200}
-                  bgColor="#ffffff"
-                  fgColor="#0f172a"
-                  level="H"
-                  includeMargin={false}
-                />
-              </div>
-              <div className="flex flex-col items-center gap-1">
-                <p className="text-violet-300 text-xs font-semibold">kas-app.vercel.app/tracker</p>
-                <div className="flex items-center gap-4 mt-2">
-                  <div className="flex items-center gap-1.5">
-                    <Smartphone className="w-3.5 h-3.5 text-yellow-400" />
-                    <span className="text-gray-400 text-[11px]">iPhone: use Camera app or Safari</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Smartphone className="w-3.5 h-3.5 text-green-400" />
-                    <span className="text-gray-400 text-[11px]">Android: use Camera or Google Lens</span>
-                  </div>
+
+              {magicUrlLoading && (
+                <div className="flex flex-col items-center gap-3 py-6">
+                  <div className="w-8 h-8 border-4 border-violet-500 border-t-transparent rounded-full animate-spin" />
+                  <p className="text-gray-500 text-xs">Generating your unique QR code…</p>
                 </div>
-              </div>
+              )}
+
+              {!magicUrlLoading && magicUrl && (
+                <>
+                  <div className="bg-white rounded-2xl p-4 shadow-lg">
+                    <QRCodeSVG
+                      value={magicUrl}
+                      size={200}
+                      bgColor="#ffffff"
+                      fgColor="#0f172a"
+                      level="H"
+                      includeMargin={false}
+                    />
+                  </div>
+                  <div className="flex flex-col items-center gap-2">
+                    <p className="text-violet-300 text-[11px] font-semibold">Unique login link — expires in 24h, single use</p>
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-1.5">
+                        <Smartphone className="w-3.5 h-3.5 text-yellow-400" />
+                        <span className="text-gray-400 text-[11px]">iPhone: Camera app or Safari</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Smartphone className="w-3.5 h-3.5 text-green-400" />
+                        <span className="text-gray-400 text-[11px]">Android: Camera or Google Lens</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleOpenQr}
+                      className="mt-1 text-[11px] text-violet-400 underline underline-offset-2"
+                    >
+                      Generate a new QR code
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {!magicUrlLoading && !magicUrl && (
+                <p className="text-red-400 text-xs">Failed to generate QR code. Please try again.</p>
+              )}
             </div>
           )}
         </div>
