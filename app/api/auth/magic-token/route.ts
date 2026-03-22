@@ -9,11 +9,14 @@ export async function POST(req: NextRequest) {
   const session = await getSessionUser(req);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  // Derive the app origin from the incoming request so this works on any domain
+  const origin = req.nextUrl.origin;
+
   const { data, error } = await supabase.auth.admin.generateLink({
     type: "magiclink",
     email: session.email,
     options: {
-      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://kas-app.vercel.app"}/auth/callback`,
+      redirectTo: `${origin}/auth/callback`,
     },
   });
 
@@ -22,10 +25,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Failed to generate link" }, { status: 500 });
   }
 
-  // Wrap the Supabase action_link through our own /api/auth/magic endpoint
-  // so the QR encodes a short kas-app URL instead of a raw Supabase URL.
-  const token = encodeURIComponent(data.properties.action_link);
-  const qrUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? "https://kas-app.vercel.app"}/api/auth/magic?link=${token}`;
+  // Wrap through our /api/auth/magic proxy so the QR encodes a short app URL
+  const encoded = encodeURIComponent(data.properties.action_link);
+  const qrUrl = `${origin}/api/auth/magic?link=${encoded}`;
 
   return NextResponse.json({ url: qrUrl });
 }

