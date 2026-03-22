@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { signOut, useSession } from "next-auth/react";
+import { createClient } from "@supabase/supabase-js";
+import { useRouter } from "next/navigation";
 import {
   MapPin,
   Mic,
@@ -21,8 +22,14 @@ interface BeforeInstallPromptEvent extends Event {
 
 type Status = "idle" | "active" | "error";
 
+const supabaseBrowser = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
 export default function TrackerPage() {
-  const { data: session } = useSession();
+  const router = useRouter();
+  const [userName, setUserName] = useState("");
   const [status, setStatus] = useState<Status>("idle");
   const [coords, setCoords] = useState<{ lat: number; lng: number; accuracy?: number } | null>(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -32,6 +39,20 @@ export default function TrackerPage() {
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [showInstallGuide, setShowInstallGuide] = useState(false);
+
+  // Fetch display name from Supabase session
+  useEffect(() => {
+    supabaseBrowser.auth.getUser().then(({ data: { user } }) => {
+      if (user?.user_metadata?.name) setUserName(user.user_metadata.name as string);
+      else if (user?.email) setUserName(user.email.split("@")[0]);
+    });
+  }, []);
+
+  const handleSignOut = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+    router.refresh();
+  };
 
   const watchIdRef = useRef<number | null>(null);
   const locationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -224,9 +245,9 @@ export default function TrackerPage() {
           <span className="text-white font-semibold text-sm">KAS Tracker</span>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-gray-400 text-xs">{session?.user?.name}</span>
+          <span className="text-gray-400 text-xs">{userName}</span>
           <button
-            onClick={() => signOut({ callbackUrl: "/login" })}
+            onClick={handleSignOut}
             className="text-gray-500 hover:text-white transition"
           >
             <LogOut className="w-4 h-4" />

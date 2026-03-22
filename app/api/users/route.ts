@@ -1,9 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/session";
 import { supabase } from "@/lib/supabase";
-import bcrypt from "bcryptjs";
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   const user = await getSessionUser(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -18,7 +17,7 @@ export async function GET(req: Request) {
   return NextResponse.json(data ?? []);
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   const user = await getSessionUser(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -27,16 +26,31 @@ export async function POST(req: Request) {
   const { name, email, password, role, color } = await req.json();
   if (!name || !email || !password) return NextResponse.json({ error: "name, email, password required" }, { status: 400 });
 
-  const { data: existing } = await supabase.from("User").select("id").eq("email", email).single();
-  if (existing) return NextResponse.json({ error: "Email already in use" }, { status: 409 });
+  // 1. Create the Supabase Auth user
+  const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true, // skip email confirmation
+  });
 
-  const hashed = await bcrypt.hash(password, 12);
+  if (authError) return NextResponse.json({ error: authError.message }, { status: 400 });
+
+  const authUserId = authData.user.id;
+
+  // 2. Insert into our custom User table using the same id
   const { data, error } = await supabase.from("User").insert({
-    name, email, password: hashed,
+    id: authUserId,
+    name, email,
+    password: "", // not used — Supabase Auth handles auth
     role: role ?? "member",
     color: color ?? "#3B82F6",
   }).select("id, name, email, role, color, createdAt").single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    // Roll back the auth user if the DB insert fails
+    await supabase.auth.admin.deleteUser(authUserId);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
   return NextResponse.json(data, { status: 201 });
 }

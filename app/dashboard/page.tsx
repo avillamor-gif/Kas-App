@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
-import { signOut, useSession } from "next-auth/react";
+import { createClient } from "@supabase/supabase-js";
+import { useRouter } from "next/navigation";
 import {
   MapPin,
   Users,
@@ -20,6 +21,11 @@ import type { MemberLocation } from "@/components/LiveMap";
 
 const MapWrapper = dynamic(() => import("@/components/MapWrapper"), { ssr: false });
 
+const supabaseBrowser = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
 type AudioClip = {
   id: string;
   url: string;
@@ -30,7 +36,8 @@ type AudioClip = {
 type Tab = "map" | "audio" | "members";
 
 export default function DashboardPage() {
-  const { data: session } = useSession();
+  const router = useRouter();
+  const [userName, setUserName] = useState("");
   const [members, setMembers] = useState<MemberLocation[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [historyPoints, setHistoryPoints] = useState<{ lat: number; lng: number }[]>([]);
@@ -38,6 +45,19 @@ export default function DashboardPage() {
   const [tab, setTab] = useState<Tab>("map");
   const [loading, setLoading] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+
+  useEffect(() => {
+    supabaseBrowser.auth.getUser().then(({ data: { user } }) => {
+      if (user?.user_metadata?.name) setUserName(user.user_metadata.name as string);
+      else if (user?.email) setUserName(user.email.split("@")[0]);
+    });
+  }, []);
+
+  const handleSignOut = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+    router.refresh();
+  };
 
   const fetchMembers = useCallback(async () => {
     setLoading(true);
@@ -110,8 +130,8 @@ export default function DashboardPage() {
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
           </button>
-          <span className="text-gray-400 text-xs">{session?.user?.name}</span>
-          <button onClick={() => signOut({ callbackUrl: "/login" })} className="text-gray-500 hover:text-white">
+          <span className="text-gray-400 text-xs">{userName}</span>
+          <button onClick={handleSignOut} className="text-gray-500 hover:text-white">
             <LogOut className="w-4 h-4" />
           </button>
         </div>

@@ -1,16 +1,20 @@
-import { auth } from "@/lib/auth";
+import { createSupabaseServerClient } from "@/lib/supabase";
+import { supabase as adminSupabase } from "@/lib/supabase";
 import { redirect } from "next/navigation";
 
 export default async function RootPage() {
-  const session = await auth();
+  const client = await createSupabaseServerClient();
+  const { data: { user } } = await client.auth.getUser();
 
-  if (!session) {
-    redirect("/login");
-  }
+  if (!user) redirect("/login");
 
-  const role = (session.user as { role?: string }).role;
+  const { data: profile } = await adminSupabase
+    .from("User")
+    .select("role")
+    .eq("id", user.id)
+    .single();
 
-  if (role === "admin") {
+  if (profile?.role === "admin") {
     redirect("/dashboard");
   } else {
     redirect("/tracker");

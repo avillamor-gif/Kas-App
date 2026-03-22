@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Shield } from "lucide-react";
 
@@ -17,19 +16,23 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
 
-    const res = await signIn("credentials", {
-      email,
-      password,
-      redirect: false,
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
     });
 
     setLoading(false);
 
-    if (res?.error) {
-      setError("Invalid email or password.");
-    } else {
-      router.push("/dashboard");
+    if (!res.ok) {
+      const d = await res.json();
+      setError(d.error ?? "Invalid email or password.");
+      return;
     }
+
+    const { role } = await res.json();
+    router.push(role === "admin" ? "/dashboard" : "/tracker");
+    router.refresh();
   }
 
   return (

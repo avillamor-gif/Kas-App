@@ -1,10 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/session";
 import { supabase } from "@/lib/supabase";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   const user = await getSessionUser(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -33,7 +33,7 @@ export async function POST(req: Request) {
   return NextResponse.json({ ok: true, id: data.id, url });
 }
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   const user = await getSessionUser(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
