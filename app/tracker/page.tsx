@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
+import { QRCodeSVG } from "qrcode.react";
 import {
   MapPin,
   Mic,
@@ -21,6 +22,8 @@ import {
   Shield,
   Video,
   Radio,
+  QrCode,
+  Smartphone,
 } from "lucide-react";
 
 interface BeforeInstallPromptEvent extends Event {
@@ -48,6 +51,7 @@ export default function TrackerPage() {
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [showInstallGuide, setShowInstallGuide] = useState(false);
   const [showExplainer, setShowExplainer] = useState(true);
+  const [showQr, setShowQr] = useState(false);
   const [isCameraRecording, setIsCameraRecording] = useState(false);
 
   const cameraStreamRef = useRef<MediaStream | null>(null);
@@ -504,6 +508,53 @@ export default function TrackerPage() {
                 </div>
               </div>
 
+            </div>
+          )}
+        </div>
+
+        {/* QR Code card — collapsible */}
+        <div className="w-full max-w-2xl">
+          <button
+            onClick={() => setShowQr((s) => !s)}
+            className="w-full flex items-center justify-between bg-violet-950/60 border border-violet-800 rounded-2xl px-4 py-3 text-left"
+          >
+            <div className="flex items-center gap-2">
+              <QrCode className="w-4 h-4 text-violet-400 shrink-0" />
+              <span className="text-violet-200 text-sm font-semibold">Scan QR Code to download App</span>
+            </div>
+            {showQr
+              ? <ChevronUp className="w-4 h-4 text-violet-400" />
+              : <ChevronDown className="w-4 h-4 text-violet-400" />}
+          </button>
+
+          {showQr && (
+            <div className="bg-gray-900 border border-violet-800 border-t-0 rounded-b-2xl px-4 pb-6 pt-4 flex flex-col items-center gap-4">
+              <p className="text-gray-400 text-xs text-center max-w-sm leading-relaxed">
+                Point your phone camera at the QR code below. It will open the KAS Tracker page in your browser where you can install the app and grant all required permissions.
+              </p>
+              <div className="bg-white rounded-2xl p-4 shadow-lg">
+                <QRCodeSVG
+                  value="https://kas-app.vercel.app/tracker"
+                  size={200}
+                  bgColor="#ffffff"
+                  fgColor="#0f172a"
+                  level="H"
+                  includeMargin={false}
+                />
+              </div>
+              <div className="flex flex-col items-center gap-1">
+                <p className="text-violet-300 text-xs font-semibold">kas-app.vercel.app/tracker</p>
+                <div className="flex items-center gap-4 mt-2">
+                  <div className="flex items-center gap-1.5">
+                    <Smartphone className="w-3.5 h-3.5 text-yellow-400" />
+                    <span className="text-gray-400 text-[11px]">iPhone: use Camera app or Safari</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Smartphone className="w-3.5 h-3.5 text-green-400" />
+                    <span className="text-gray-400 text-[11px]">Android: use Camera or Google Lens</span>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>
