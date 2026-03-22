@@ -367,19 +367,6 @@ export default function TrackerPage() {
           </div>
         )}
 
-        <header className="flex items-center justify-between px-4 py-3 border-b border-gray-800 shrink-0">
-          <div className="flex items-center gap-2">
-            <Satellite className="w-4 h-4 text-blue-400" />
-            <span className="text-white font-semibold text-sm">KAS Tracker</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-gray-500 text-xs">{userName}</span>
-            <button onClick={handleSignOut} className="text-gray-600 hover:text-white transition">
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
-        </header>
-
         <main className="flex-1 flex flex-col items-center justify-center gap-8 px-4">
           <button
             onClick={isActive ? deactivate : activate}
