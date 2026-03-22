@@ -40,6 +40,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# agent instruction files
+AGENTS.md
+CLAUDE.md
+
 /app/generated/prisma
 
 # prisma sqlite (local dev only)

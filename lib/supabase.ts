@@ -35,6 +35,7 @@ export type DbUser = {
   role: string;
   color: string;
   isTracking: boolean;
+  sleepLocked: boolean;
   lastSeen: string | null;
   createdAt: string;
 };
