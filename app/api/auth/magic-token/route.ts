@@ -16,6 +16,7 @@ export async function POST(req: NextRequest) {
     type: "magiclink",
     email: session.email,
     options: {
+      // auth/callback sets the session then redirects to /install for PWA prompt
       redirectTo: `${origin}/auth/callback`,
     },
   });

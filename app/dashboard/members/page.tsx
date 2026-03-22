@@ -116,12 +116,21 @@ export default function MembersPage() {
     setQrMemberId(member.id);
     setQrUrl(null);
     setQrLoading(true);
-    // Generate magic link — member must be logged in as themselves.
-    // We use the admin magic-token endpoint (generates for the session user).
-    // For admin-generated QRs per member, we just show the tracker URL.
-    const trackerUrl = `${window.location.origin}/tracker`;
-    setQrUrl(trackerUrl);
-    setQrLoading(false);
+    try {
+      // Generate a unique one-time magic login link for this specific member.
+      // Scanning the QR will log them in and land on /install to prompt PWA install.
+      const res = await fetch(`/api/auth/magic-token/${member.id}`, { method: "POST" });
+      const json = await res.json();
+      if (json.url) {
+        setQrUrl(json.url);
+      } else {
+        setQrUrl(null);
+      }
+    } catch {
+      setQrUrl(null);
+    } finally {
+      setQrLoading(false);
+    }
   };
 
   const handleCopy = (url: string) => {
@@ -550,7 +559,7 @@ function MemberGridCard({
               <div className="bg-white p-2 rounded-xl">
                 <QRCodeSVG value={qrUrl} size={110} />
               </div>
-              <p className="text-gray-500 text-[10px] text-center">Scan to open tracker</p>
+              <p className="text-gray-500 text-[10px] text-center">Scan to install &amp; auto-login · expires 24h</p>
               <div className="flex items-center gap-2 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 w-full">
                 <p className="text-gray-400 text-[10px] truncate flex-1">{qrUrl}</p>
                 <button onClick={() => onCopy(qrUrl)} className="text-gray-500 hover:text-white transition shrink-0">
@@ -767,7 +776,7 @@ function MemberCard({
               <div className="flex-1 min-w-0">
                 <p className="text-white text-sm font-medium mb-1">Tracker install link</p>
                 <p className="text-gray-500 text-xs mb-3">
-                  Share this QR with <strong className="text-gray-300">{m.name}</strong> to open the tracker app on their phone. They will need to log in with their credentials.
+                  Share this QR with <strong className="text-gray-300">{m.name}</strong>. Scanning it will <strong className="text-gray-300">automatically log them in</strong> and prompt them to install the app. Link expires in 24 hours.
                 </p>
                 <div className="flex items-center gap-2 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2">
                   <p className="text-gray-400 text-xs truncate flex-1">{qrUrl}</p>

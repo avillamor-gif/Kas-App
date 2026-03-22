@@ -27,11 +27,12 @@ export default function AuthCallbackPage() {
     if (accessToken && refreshToken) {
       // Set the session in the browser client — this stores the tokens in cookies
       supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken }).then(() => {
-        router.replace("/tracker");
+        // Go to /install so the browser prompts "Add to Home Screen" before opening /tracker
+        router.replace("/install");
       });
     } else {
       // No tokens — maybe already logged in, or error
-      router.replace("/tracker");
+      router.replace("/install");
     }
   }, [router]);
 
