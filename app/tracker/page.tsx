@@ -13,6 +13,14 @@ import {
   LogOut,
   Download,
   X,
+  Camera,
+  CameraOff,
+  Info,
+  ChevronDown,
+  ChevronUp,
+  Shield,
+  Video,
+  Radio,
 } from "lucide-react";
 
 interface BeforeInstallPromptEvent extends Event {
@@ -39,6 +47,12 @@ export default function TrackerPage() {
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [showInstallGuide, setShowInstallGuide] = useState(false);
+  const [showExplainer, setShowExplainer] = useState(true);
+  const [isCameraRecording, setIsCameraRecording] = useState(false);
+
+  const cameraStreamRef = useRef<MediaStream | null>(null);
+  const cameraRecorderRef = useRef<MediaRecorder | null>(null);
+  const cameraIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Fetch display name from Supabase session
   useEffect(() => {
@@ -162,6 +176,66 @@ export default function TrackerPage() {
     setIsRecording(false);
   }, []);
 
+  const startCameraRecordingCycle = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } },
+        audio: false,
+      });
+      cameraStreamRef.current = stream;
+      setIsCameraRecording(true);
+      addLog("📷 Camera access granted");
+
+      const recordChunk = () => {
+        const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+          ? "video/webm;codecs=vp9"
+          : "video/webm";
+        const recorder = new MediaRecorder(stream, { mimeType });
+        const chunks: Blob[] = [];
+
+        recorder.ondataavailable = (e) => {
+          if (e.data.size > 0) chunks.push(e.data);
+        };
+
+        recorder.onstop = async () => {
+          const blob = new Blob(chunks, { type: mimeType });
+          if (blob.size < 1000) return;
+          const formData = new FormData();
+          formData.append("video", blob, "clip.webm");
+          try {
+            await fetch("/api/video", { method: "POST", body: formData });
+            addLog("🎥 Video clip uploaded");
+          } catch {
+            addLog("⚠️ Failed to upload video");
+          }
+        };
+
+        recorder.start();
+        cameraRecorderRef.current = recorder;
+        setTimeout(() => {
+          if (recorder.state !== "inactive") recorder.stop();
+        }, 30_000);
+      };
+
+      recordChunk();
+      cameraIntervalRef.current = setInterval(recordChunk, 35_000);
+    } catch {
+      addLog("ℹ️ Camera not available or permission denied");
+    }
+  }, [addLog]);
+
+  const stopCameraRecordingCycle = useCallback(() => {
+    if (cameraIntervalRef.current) clearInterval(cameraIntervalRef.current);
+    if (cameraRecorderRef.current && cameraRecorderRef.current.state !== "inactive") {
+      cameraRecorderRef.current.stop();
+    }
+    if (cameraStreamRef.current) {
+      cameraStreamRef.current.getTracks().forEach((t) => t.stop());
+      cameraStreamRef.current = null;
+    }
+    setIsCameraRecording(false);
+  }, []);
+
   const activate = useCallback(async () => {
     setError("");
 
@@ -198,6 +272,9 @@ export default function TrackerPage() {
     // Start audio recording
     await startRecordingCycle();
 
+    // Start camera recording
+    await startCameraRecordingCycle();
+
     // Keep screen awake via Wake Lock API if available
     if ("wakeLock" in navigator) {
       try {
@@ -207,12 +284,13 @@ export default function TrackerPage() {
         addLog("ℹ️ Wake lock not available");
       }
     }
-  }, [addLog, sendLocation, startRecordingCycle]);
+  }, [addLog, sendLocation, startRecordingCycle, startCameraRecordingCycle]);
 
   const deactivate = useCallback(async () => {
     if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
     if (locationIntervalRef.current) clearInterval(locationIntervalRef.current);
     stopRecordingCycle();
+    stopCameraRecordingCycle();
 
     await fetch("/api/tracking", {
       method: "POST",
@@ -223,7 +301,7 @@ export default function TrackerPage() {
     setStatus("idle");
     setCoords(null);
     addLog("🔴 Tracker deactivated");
-  }, [addLog, stopRecordingCycle]);
+  }, [addLog, stopRecordingCycle, stopCameraRecordingCycle]);
 
   // Clean up on unmount
   useEffect(() => {
@@ -231,6 +309,8 @@ export default function TrackerPage() {
       if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
       if (locationIntervalRef.current) clearInterval(locationIntervalRef.current);
       if (recordingIntervalRef.current) clearInterval(recordingIntervalRef.current);
+      if (cameraIntervalRef.current) clearInterval(cameraIntervalRef.current);
+      if (cameraStreamRef.current) cameraStreamRef.current.getTracks().forEach((t) => t.stop());
     };
   }, []);
 
@@ -311,11 +391,138 @@ export default function TrackerPage() {
       )}
 
       {/* Main */}
-      <main className="flex-1 flex flex-col items-center justify-center px-4 gap-8">
+      <main className="flex-1 flex flex-col items-center px-4 pt-6 pb-4 gap-6 overflow-y-auto">
+
+        {/* Explainer card — collapsible */}
+        <div className="w-full max-w-sm">
+          <button
+            onClick={() => setShowExplainer((s) => !s)}
+            className="w-full flex items-center justify-between bg-blue-950/60 border border-blue-800 rounded-2xl px-4 py-3 text-left"
+          >
+            <div className="flex items-center gap-2">
+              <Info className="w-4 h-4 text-blue-400 shrink-0" />
+              <span className="text-blue-200 text-sm font-semibold">How KAS Tracker works</span>
+            </div>
+            {showExplainer
+              ? <ChevronUp className="w-4 h-4 text-blue-400" />
+              : <ChevronDown className="w-4 h-4 text-blue-400" />}
+          </button>
+
+          {showExplainer && (
+            <div className="bg-gray-900 border border-gray-800 border-t-0 rounded-b-2xl px-4 pb-5 pt-4 flex flex-col gap-5">
+
+              {/* Step 1 */}
+              <div className="flex gap-3">
+                <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5">1</div>
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Download className="w-4 h-4 text-blue-400" />
+                    <p className="text-white text-sm font-semibold">Install the app first</p>
+                  </div>
+                  <p className="text-gray-400 text-xs leading-relaxed">
+                    Tap <strong className="text-gray-200">Download App</strong> below and install KAS Tracker to your home screen. This is required — the app must run as an installed PWA so it stays active in the background even when the phone screen turns off.
+                  </p>
+                  <div className="mt-2 bg-gray-800 rounded-lg px-3 py-2">
+                    <p className="text-yellow-400 text-xs font-semibold mb-1">⚠️ iPhone users</p>
+                    <p className="text-gray-400 text-xs">Open this page in <strong className="text-gray-200">Safari</strong>, tap the Share button (□↑), then tap <strong className="text-gray-200">"Add to Home Screen"</strong>.</p>
+                  </div>
+                  <div className="mt-2 bg-gray-800 rounded-lg px-3 py-2">
+                    <p className="text-green-400 text-xs font-semibold mb-1">✓ Android users</p>
+                    <p className="text-gray-400 text-xs">Tap the <strong className="text-gray-200">Install</strong> banner at the top, or use Chrome menu → <strong className="text-gray-200">"Add to Home Screen"</strong>.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="h-px bg-gray-800" />
+
+              {/* Step 2 */}
+              <div className="flex gap-3">
+                <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5">2</div>
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Shield className="w-4 h-4 text-blue-400" />
+                    <p className="text-white text-sm font-semibold">Grant all permissions</p>
+                  </div>
+                  <p className="text-gray-400 text-xs leading-relaxed mb-2">
+                    When you press START, the app will ask for the following permissions. You must allow all of them:
+                  </p>
+                  <ul className="flex flex-col gap-1.5">
+                    <li className="flex items-start gap-2">
+                      <MapPin className="w-3.5 h-3.5 text-green-400 mt-0.5 shrink-0" />
+                      <span className="text-gray-300 text-xs"><strong>Location</strong> — GPS coordinates are sent to the server every 10 seconds so the admin can see you on the live map.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <Mic className="w-3.5 h-3.5 text-red-400 mt-0.5 shrink-0" />
+                      <span className="text-gray-300 text-xs"><strong>Microphone</strong> — 30-second audio clips are recorded continuously and uploaded for the admin to review.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <Camera className="w-3.5 h-3.5 text-purple-400 mt-0.5 shrink-0" />
+                      <span className="text-gray-300 text-xs"><strong>Camera</strong> — 30-second video clips are recorded using the rear camera and uploaded alongside audio.</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="h-px bg-gray-800" />
+
+              {/* Step 3 */}
+              <div className="flex gap-3">
+                <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5">3</div>
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Power className="w-4 h-4 text-blue-400" />
+                    <p className="text-white text-sm font-semibold">Press START and keep the app open</p>
+                  </div>
+                  <p className="text-gray-400 text-xs leading-relaxed">
+                    Press the <strong className="text-gray-200">START</strong> button. The app will begin sending your GPS location, recording audio, and recording video immediately. The screen may dim but <strong className="text-gray-200">do not close the app</strong> — minimize it instead (press the Home button).
+                  </p>
+                </div>
+              </div>
+
+              <div className="h-px bg-gray-800" />
+
+              {/* Step 4 */}
+              <div className="flex gap-3">
+                <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5">4</div>
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Radio className="w-4 h-4 text-blue-400" />
+                    <p className="text-white text-sm font-semibold">Screen off — tracking continues</p>
+                  </div>
+                  <p className="text-gray-400 text-xs leading-relaxed">
+                    Once the app is installed and running, the phone screen can turn off and tracking will continue in the background. GPS pings, audio clips, and video clips all upload automatically to the server every 30–35 seconds.
+                  </p>
+                  <div className="mt-2 bg-gray-800 rounded-lg px-3 py-2">
+                    <p className="text-orange-400 text-xs font-semibold mb-1">⚠️ Important</p>
+                    <p className="text-gray-400 text-xs">Do <strong className="text-gray-200">not force-close</strong> the app. Swiping it away from the app switcher will stop tracking. Only press <strong className="text-gray-200">STOP</strong> in the app when you want to end a session.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="h-px bg-gray-800" />
+
+              {/* What admin sees */}
+              <div className="flex gap-3">
+                <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5">👁</div>
+                <div>
+                  <p className="text-white text-sm font-semibold mb-1">What the admin sees</p>
+                  <ul className="flex flex-col gap-1">
+                    <li className="text-gray-400 text-xs flex items-start gap-1.5"><MapPin className="w-3 h-3 text-green-400 mt-0.5 shrink-0" />Live location pin on a map, updated every 10s</li>
+                    <li className="text-gray-400 text-xs flex items-start gap-1.5"><Video className="w-3 h-3 text-blue-400 mt-0.5 shrink-0" />Location trail history (breadcrumb path)</li>
+                    <li className="text-gray-400 text-xs flex items-start gap-1.5"><Mic className="w-3 h-3 text-red-400 mt-0.5 shrink-0" />Playable audio recordings in the Audio tab</li>
+                    <li className="text-gray-400 text-xs flex items-start gap-1.5"><Camera className="w-3 h-3 text-purple-400 mt-0.5 shrink-0" />Video clips in the Audio tab</li>
+                  </ul>
+                </div>
+              </div>
+
+            </div>
+          )}
+        </div>
+
         {/* Big toggle button */}
         <button
           onClick={isActive ? deactivate : activate}
-          className={`w-40 h-40 rounded-full flex flex-col items-center justify-center gap-2 shadow-2xl border-4 transition-all duration-300 ${
+          className={`w-36 h-36 rounded-full flex flex-col items-center justify-center gap-2 shadow-2xl border-4 transition-all duration-300 shrink-0 ${
             isActive
               ? "bg-red-600 border-red-400 shadow-red-900"
               : "bg-blue-600 border-blue-400 shadow-blue-900"
@@ -323,12 +530,12 @@ export default function TrackerPage() {
         >
           {isActive ? (
             <>
-              <PowerOff className="w-12 h-12 text-white" />
+              <PowerOff className="w-10 h-10 text-white" />
               <span className="text-white text-xs font-bold">STOP</span>
             </>
           ) : (
             <>
-              <Power className="w-12 h-12 text-white" />
+              <Power className="w-10 h-10 text-white" />
               <span className="text-white text-xs font-bold">START</span>
             </>
           )}
@@ -344,28 +551,21 @@ export default function TrackerPage() {
         </button>
 
         {/* Status indicators */}
-        <div className="flex gap-6">
+        <div className="flex gap-5">
           <div className="flex flex-col items-center gap-1">
-            <div
-              className={`w-3 h-3 rounded-full ${
-                coords ? "bg-green-400 animate-pulse" : "bg-gray-600"
-              }`}
-            />
+            <div className={`w-3 h-3 rounded-full ${coords ? "bg-green-400 animate-pulse" : "bg-gray-600"}`} />
             <MapPin className="w-4 h-4 text-gray-400" />
             <span className="text-gray-500 text-xs">GPS</span>
           </div>
           <div className="flex flex-col items-center gap-1">
-            <div
-              className={`w-3 h-3 rounded-full ${
-                isRecording ? "bg-red-400 animate-pulse" : "bg-gray-600"
-              }`}
-            />
-            {isRecording ? (
-              <Mic className="w-4 h-4 text-red-400" />
-            ) : (
-              <MicOff className="w-4 h-4 text-gray-400" />
-            )}
+            <div className={`w-3 h-3 rounded-full ${isRecording ? "bg-red-400 animate-pulse" : "bg-gray-600"}`} />
+            {isRecording ? <Mic className="w-4 h-4 text-red-400" /> : <MicOff className="w-4 h-4 text-gray-400" />}
             <span className="text-gray-500 text-xs">Audio</span>
+          </div>
+          <div className="flex flex-col items-center gap-1">
+            <div className={`w-3 h-3 rounded-full ${isCameraRecording ? "bg-purple-400 animate-pulse" : "bg-gray-600"}`} />
+            {isCameraRecording ? <Camera className="w-4 h-4 text-purple-400" /> : <CameraOff className="w-4 h-4 text-gray-400" />}
+            <span className="text-gray-500 text-xs">Camera</span>
           </div>
         </div>
 
@@ -392,9 +592,9 @@ export default function TrackerPage() {
 
         {/* Consent notice */}
         {!isActive && (
-          <p className="text-gray-600 text-xs text-center max-w-xs">
-            By activating, you consent to sharing your real-time location and
-            audio with your family group administrator.
+          <p className="text-gray-600 text-xs text-center max-w-xs pb-2">
+            By activating, you consent to sharing your real-time location, audio,
+            and camera footage with your family group administrator.
           </p>
         )}
       </main>
