@@ -28,9 +28,9 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // These pages are public — no session required
-  const publicPaths = ["/login", "/install", "/auth/callback"];
+  const publicPaths = ["/login", "/install", "/auth/callback", "/tracker"];
   if (publicPaths.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
-    // Already logged in → skip login page, but allow /install and /auth/callback always
+    // Already logged in → skip login page, but allow everything else always
     if (user && pathname === "/login") {
       return NextResponse.redirect(new URL("/", request.url));
     }

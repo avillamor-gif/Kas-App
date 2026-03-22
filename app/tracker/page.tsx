@@ -53,6 +53,12 @@ export default function TrackerPage() {
   const [sleepLocked, setSleepLocked] = useState(false);
   const [trackingEnabled, setTrackingEnabled] = useState(true);
   const sleepLockPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // null = checking, false = no session, true = has session
+  const [sessionReady, setSessionReady] = useState<boolean | null>(null);
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [loginLoading, setLoginLoading] = useState(false);
 
   // Detect if running as installed PWA (standalone mode)
   useEffect(() => {
@@ -66,15 +72,51 @@ export default function TrackerPage() {
   const cameraRecorderRef = useRef<MediaRecorder | null>(null);
   const cameraIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Fetch user info from Supabase session
+  // Fetch user info — silently refresh session, never redirect
   useEffect(() => {
-    supabaseBrowser.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
+    supabaseBrowser.auth.getSession().then(async ({ data: { session } }) => {
+      // If session exists but token is close to expiry, refresh it
+      let user = session?.user ?? null;
+      if (!user) {
+        // Try one silent refresh before giving up
+        const { data } = await supabaseBrowser.auth.refreshSession();
+        user = data.session?.user ?? null;
+      }
+      if (user) {
+        setUserId(user.id);
+        if (user.user_metadata?.name) setUserName(user.user_metadata.name as string);
+        else if (user.email) setUserName(user.email.split("@")[0]);
+        setSessionReady(true);
+      } else {
+        setSessionReady(false);
+      }
+    });
+  }, []);
+
+  const handleInlineLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError("");
+    setLoginLoading(true);
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: loginEmail, password: loginPassword }),
+    });
+    setLoginLoading(false);
+    if (!res.ok) {
+      const d = await res.json();
+      setLoginError(d.error ?? "Invalid credentials");
+      return;
+    }
+    // Re-fetch user after login
+    const { data: { user } } = await supabaseBrowser.auth.getUser();
+    if (user) {
       setUserId(user.id);
       if (user.user_metadata?.name) setUserName(user.user_metadata.name as string);
       else if (user.email) setUserName(user.email.split("@")[0]);
-    });
-  }, []);
+      setSessionReady(true);
+    }
+  };
 
   const handleSignOut = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -374,6 +416,62 @@ export default function TrackerPage() {
   // ─── PWA Mobile UI ──────────────────────────────────────────────────────────
   // When running as installed PWA, show only START/STOP + status dots.
   if (isPwa) {
+
+    // Still checking session
+    if (sessionReady === null) {
+      return (
+        <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center gap-4">
+          <div className="bg-blue-600 w-14 h-14 rounded-2xl flex items-center justify-center">
+            <Shield className="w-7 h-7 text-white" />
+          </div>
+          <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      );
+    }
+
+    // Session expired — show minimal inline login, no redirect
+    if (sessionReady === false) {
+      return (
+        <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center px-8 gap-6">
+          <div className="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center shadow-xl shadow-blue-900">
+            <Shield className="w-8 h-8 text-white" />
+          </div>
+          <div className="text-center">
+            <p className="text-white font-bold text-base">KAS Tracker</p>
+            <p className="text-gray-500 text-xs mt-1">Session expired — sign in to continue</p>
+          </div>
+          <form onSubmit={handleInlineLogin} className="w-full flex flex-col gap-3">
+            {loginError && (
+              <p className="text-red-400 text-xs text-center">{loginError}</p>
+            )}
+            <input
+              type="email"
+              required
+              value={loginEmail}
+              onChange={(e) => setLoginEmail(e.target.value)}
+              placeholder="Email"
+              className="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-blue-500 transition"
+            />
+            <input
+              type="password"
+              required
+              value={loginPassword}
+              onChange={(e) => setLoginPassword(e.target.value)}
+              placeholder="Password"
+              className="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-blue-500 transition"
+            />
+            <button
+              type="submit"
+              disabled={loginLoading}
+              className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl text-sm transition"
+            >
+              {loginLoading ? "Signing in…" : "Sign In & Open Tracker"}
+            </button>
+          </form>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen bg-gray-950 flex flex-col select-none">
 
