@@ -394,7 +394,7 @@ export default function TrackerPage() {
       <main className="flex-1 flex flex-col items-center px-4 pt-6 pb-4 gap-6 overflow-y-auto">
 
         {/* Explainer card — collapsible */}
-        <div className="w-full max-w-sm">
+        <div className="w-full max-w-2xl">
           <button
             onClick={() => setShowExplainer((s) => !s)}
             className="w-full flex items-center justify-between bg-blue-950/60 border border-blue-800 rounded-2xl px-4 py-3 text-left"
@@ -409,109 +409,98 @@ export default function TrackerPage() {
           </button>
 
           {showExplainer && (
-            <div className="bg-gray-900 border border-gray-800 border-t-0 rounded-b-2xl px-4 pb-5 pt-4 flex flex-col gap-5">
+            <div className="bg-gray-900 border border-gray-800 border-t-0 rounded-b-2xl px-4 pb-5 pt-4">
 
-              {/* Step 1 */}
-              <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5">1</div>
-                <div>
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <Download className="w-4 h-4 text-blue-400" />
-                    <p className="text-white text-sm font-semibold">Install the app first</p>
+              {/* 3-column grid */}
+              <div className="grid grid-cols-3 gap-3 mb-4">
+
+                {/* Step 1 */}
+                <div className="bg-gray-800/60 rounded-xl p-3 flex flex-col gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center text-white text-[10px] font-bold shrink-0">1</div>
+                    <Download className="w-3.5 h-3.5 text-blue-400 shrink-0" />
                   </div>
-                  <p className="text-gray-400 text-xs leading-relaxed">
-                    Tap <strong className="text-gray-200">Download App</strong> below and install KAS Tracker to your home screen. This is required — the app must run as an installed PWA so it stays active in the background even when the phone screen turns off.
+                  <p className="text-white text-xs font-semibold leading-tight">Install the app</p>
+                  <p className="text-gray-400 text-[11px] leading-relaxed">
+                    Tap <strong className="text-gray-200">Download App</strong> and add KAS Tracker to your home screen so it stays active in the background.
                   </p>
-                  <div className="mt-2 bg-gray-800 rounded-lg px-3 py-2">
-                    <p className="text-yellow-400 text-xs font-semibold mb-1">⚠️ iPhone users</p>
-                    <p className="text-gray-400 text-xs">Open this page in <strong className="text-gray-200">Safari</strong>, tap the Share button (□↑), then tap <strong className="text-gray-200">"Add to Home Screen"</strong>.</p>
+                  <div className="bg-gray-900 rounded-lg px-2 py-1.5">
+                    <p className="text-yellow-400 text-[10px] font-semibold mb-0.5">⚠️ iPhone</p>
+                    <p className="text-gray-400 text-[10px]">Open in <strong className="text-gray-200">Safari</strong> → Share (□↑) → <strong className="text-gray-200">"Add to Home Screen"</strong></p>
                   </div>
-                  <div className="mt-2 bg-gray-800 rounded-lg px-3 py-2">
-                    <p className="text-green-400 text-xs font-semibold mb-1">✓ Android users</p>
-                    <p className="text-gray-400 text-xs">Tap the <strong className="text-gray-200">Install</strong> banner at the top, or use Chrome menu → <strong className="text-gray-200">"Add to Home Screen"</strong>.</p>
+                  <div className="bg-gray-900 rounded-lg px-2 py-1.5">
+                    <p className="text-green-400 text-[10px] font-semibold mb-0.5">✓ Android</p>
+                    <p className="text-gray-400 text-[10px]">Chrome menu → <strong className="text-gray-200">"Add to Home Screen"</strong></p>
                   </div>
                 </div>
-              </div>
 
-              <div className="h-px bg-gray-800" />
-
-              {/* Step 2 */}
-              <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5">2</div>
-                <div>
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <Shield className="w-4 h-4 text-blue-400" />
-                    <p className="text-white text-sm font-semibold">Grant all permissions</p>
+                {/* Step 2 */}
+                <div className="bg-gray-800/60 rounded-xl p-3 flex flex-col gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center text-white text-[10px] font-bold shrink-0">2</div>
+                    <Shield className="w-3.5 h-3.5 text-blue-400 shrink-0" />
                   </div>
-                  <p className="text-gray-400 text-xs leading-relaxed mb-2">
-                    When you press START, the app will ask for the following permissions. You must allow all of them:
-                  </p>
+                  <p className="text-white text-xs font-semibold leading-tight">Grant permissions</p>
+                  <p className="text-gray-400 text-[11px] leading-relaxed">Allow all when prompted:</p>
                   <ul className="flex flex-col gap-1.5">
-                    <li className="flex items-start gap-2">
-                      <MapPin className="w-3.5 h-3.5 text-green-400 mt-0.5 shrink-0" />
-                      <span className="text-gray-300 text-xs"><strong>Location</strong> — GPS coordinates are sent to the server every 10 seconds so the admin can see you on the live map.</span>
+                    <li className="flex items-start gap-1.5">
+                      <MapPin className="w-3 h-3 text-green-400 mt-0.5 shrink-0" />
+                      <span className="text-gray-300 text-[11px]"><strong>Location</strong> — GPS sent every 10s to the live map.</span>
                     </li>
-                    <li className="flex items-start gap-2">
-                      <Mic className="w-3.5 h-3.5 text-red-400 mt-0.5 shrink-0" />
-                      <span className="text-gray-300 text-xs"><strong>Microphone</strong> — 30-second audio clips are recorded continuously and uploaded for the admin to review.</span>
+                    <li className="flex items-start gap-1.5">
+                      <Mic className="w-3 h-3 text-red-400 mt-0.5 shrink-0" />
+                      <span className="text-gray-300 text-[11px]"><strong>Microphone</strong> — 30s audio clips uploaded continuously.</span>
                     </li>
-                    <li className="flex items-start gap-2">
-                      <Camera className="w-3.5 h-3.5 text-purple-400 mt-0.5 shrink-0" />
-                      <span className="text-gray-300 text-xs"><strong>Camera</strong> — 30-second video clips are recorded using the rear camera and uploaded alongside audio.</span>
+                    <li className="flex items-start gap-1.5">
+                      <Camera className="w-3 h-3 text-purple-400 mt-0.5 shrink-0" />
+                      <span className="text-gray-300 text-[11px]"><strong>Camera</strong> — 30s video clips from rear camera.</span>
                     </li>
                   </ul>
                 </div>
-              </div>
 
-              <div className="h-px bg-gray-800" />
+                {/* Step 3 + 4 + Admin combined */}
+                <div className="bg-gray-800/60 rounded-xl p-3 flex flex-col gap-3">
 
-              {/* Step 3 */}
-              <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5">3</div>
-                <div>
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <Power className="w-4 h-4 text-blue-400" />
-                    <p className="text-white text-sm font-semibold">Press START and keep the app open</p>
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center text-white text-[10px] font-bold shrink-0">3</div>
+                      <Power className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                      <p className="text-white text-xs font-semibold leading-tight">Press START</p>
+                    </div>
+                    <p className="text-gray-400 text-[11px] leading-relaxed">
+                      Tracking begins immediately. <strong className="text-gray-200">Minimize</strong> the app — do not close it.
+                    </p>
                   </div>
-                  <p className="text-gray-400 text-xs leading-relaxed">
-                    Press the <strong className="text-gray-200">START</strong> button. The app will begin sending your GPS location, recording audio, and recording video immediately. The screen may dim but <strong className="text-gray-200">do not close the app</strong> — minimize it instead (press the Home button).
-                  </p>
-                </div>
-              </div>
 
-              <div className="h-px bg-gray-800" />
+                  <div className="h-px bg-gray-700" />
 
-              {/* Step 4 */}
-              <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5">4</div>
-                <div>
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <Radio className="w-4 h-4 text-blue-400" />
-                    <p className="text-white text-sm font-semibold">Screen off — tracking continues</p>
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center text-white text-[10px] font-bold shrink-0">4</div>
+                      <Radio className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                      <p className="text-white text-xs font-semibold leading-tight">Screen off — still tracking</p>
+                    </div>
+                    <p className="text-gray-400 text-[11px] leading-relaxed">
+                      GPS, audio &amp; video upload every 30s even with screen off.
+                    </p>
+                    <div className="bg-gray-900 rounded-lg px-2 py-1.5">
+                      <p className="text-orange-400 text-[10px] font-semibold mb-0.5">⚠️ Don't force-close</p>
+                      <p className="text-gray-400 text-[10px]">Swiping away stops tracking. Press <strong className="text-gray-200">STOP</strong> in-app to end.</p>
+                    </div>
                   </div>
-                  <p className="text-gray-400 text-xs leading-relaxed">
-                    Once the app is installed and running, the phone screen can turn off and tracking will continue in the background. GPS pings, audio clips, and video clips all upload automatically to the server every 30–35 seconds.
-                  </p>
-                  <div className="mt-2 bg-gray-800 rounded-lg px-3 py-2">
-                    <p className="text-orange-400 text-xs font-semibold mb-1">⚠️ Important</p>
-                    <p className="text-gray-400 text-xs">Do <strong className="text-gray-200">not force-close</strong> the app. Swiping it away from the app switcher will stop tracking. Only press <strong className="text-gray-200">STOP</strong> in the app when you want to end a session.</p>
+
+                  <div className="h-px bg-gray-700" />
+
+                  <div className="flex flex-col gap-1">
+                    <p className="text-white text-xs font-semibold">👁 Admin sees</p>
+                    <ul className="flex flex-col gap-1">
+                      <li className="text-gray-400 text-[10px] flex items-start gap-1"><MapPin className="w-2.5 h-2.5 text-green-400 mt-0.5 shrink-0" />Live map pin, updated every 10s</li>
+                      <li className="text-gray-400 text-[10px] flex items-start gap-1"><Video className="w-2.5 h-2.5 text-blue-400 mt-0.5 shrink-0" />Location trail history</li>
+                      <li className="text-gray-400 text-[10px] flex items-start gap-1"><Mic className="w-2.5 h-2.5 text-red-400 mt-0.5 shrink-0" />Audio recordings</li>
+                      <li className="text-gray-400 text-[10px] flex items-start gap-1"><Camera className="w-2.5 h-2.5 text-purple-400 mt-0.5 shrink-0" />Video clips</li>
+                    </ul>
                   </div>
-                </div>
-              </div>
 
-              <div className="h-px bg-gray-800" />
-
-              {/* What admin sees */}
-              <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5">👁</div>
-                <div>
-                  <p className="text-white text-sm font-semibold mb-1">What the admin sees</p>
-                  <ul className="flex flex-col gap-1">
-                    <li className="text-gray-400 text-xs flex items-start gap-1.5"><MapPin className="w-3 h-3 text-green-400 mt-0.5 shrink-0" />Live location pin on a map, updated every 10s</li>
-                    <li className="text-gray-400 text-xs flex items-start gap-1.5"><Video className="w-3 h-3 text-blue-400 mt-0.5 shrink-0" />Location trail history (breadcrumb path)</li>
-                    <li className="text-gray-400 text-xs flex items-start gap-1.5"><Mic className="w-3 h-3 text-red-400 mt-0.5 shrink-0" />Playable audio recordings in the Audio tab</li>
-                    <li className="text-gray-400 text-xs flex items-start gap-1.5"><Camera className="w-3 h-3 text-purple-400 mt-0.5 shrink-0" />Video clips in the Audio tab</li>
-                  </ul>
                 </div>
               </div>
 
