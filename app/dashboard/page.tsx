@@ -139,124 +139,127 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      {/* Main layout: sidebar always visible + content */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* Main layout: tab bar full-width on top, content below */}
+      <div className="flex-1 flex flex-col overflow-hidden">
 
-        {/* ── Always-visible left sidebar ── */}
-        <aside className="w-64 shrink-0 border-r border-gray-800 flex flex-col overflow-hidden">
-
-          {/* Live member list */}
-          <div className="flex-1 overflow-y-auto">
-            <div className="px-3 pt-3 pb-1 flex items-center justify-between">
-              <p className="text-gray-400 text-xs uppercase font-semibold tracking-wide">Family Members</p>
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                <span className="text-green-400 text-xs">{members.filter(m => m.isTracking).length} live</span>
-              </div>
-            </div>
-
-            {members.length === 0 && (
-              <p className="text-gray-600 text-xs px-3 py-2">No members yet</p>
-            )}
-
-            {members.map((m) => (
+        {/* ── Tab bar ── */}
+        <div className="border-b border-gray-800 shrink-0 flex">
+          {(["map", "audio", "camera"] as const).map((t) => {
+            const Icon = t === "map" ? MapPin : t === "audio" ? Mic : Video;
+            const label = t === "map" ? "Map" : t === "audio" ? "Audio" : "Camera";
+            return (
               <button
-                key={m.id}
-                onClick={() => handleSelectMember(m.id)}
-                className={`w-full text-left px-3 py-2.5 flex items-center gap-2.5 transition border-l-2 ${
-                  selectedId === m.id
-                    ? "bg-gray-800 border-blue-500"
-                    : "border-transparent hover:bg-gray-900"
+                key={t}
+                onClick={() => setTab(t)}
+                className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium border-b-2 transition ${
+                  tab === t
+                    ? "border-blue-500 text-blue-400"
+                    : "border-transparent text-gray-500 hover:text-gray-300"
                 }`}
               >
-                <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-                  style={{ backgroundColor: m.color }}
-                >
-                  {m.name.charAt(0).toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-white text-sm font-medium truncate">{m.name}</p>
-                  <div className="flex items-center gap-1 mt-0.5">
-                    {m.isTracking ? (
-                      <><Wifi className="w-3 h-3 text-green-400" /><span className="text-green-400 text-xs">Live</span></>
-                    ) : (
-                      <><WifiOff className="w-3 h-3 text-gray-600" /><span className="text-gray-600 text-xs">Offline</span></>
-                    )}
-                  </div>
-                  {m.lastSeen && (
-                    <p className="text-gray-600 text-xs flex items-center gap-0.5 mt-0.5">
-                      <Clock className="w-2.5 h-2.5" />
-                      {new Date(m.lastSeen).toLocaleTimeString()}
-                    </p>
-                  )}
-                </div>
-                {m.locations[0] && <ChevronRight className="w-3.5 h-3.5 text-gray-600" />}
+                <Icon className="w-4 h-4" />
+                {label}
+                {t === "audio" && audioClips.filter(c => !c.url.endsWith(".webm")).length > 0 && (
+                  <span className="bg-gray-700 text-gray-300 text-[10px] rounded-full px-1.5">
+                    {audioClips.filter(c => !c.url.endsWith(".webm")).length}
+                  </span>
+                )}
+                {t === "camera" && audioClips.filter(c => c.url.endsWith(".webm")).length > 0 && (
+                  <span className="bg-gray-700 text-gray-300 text-[10px] rounded-full px-1.5">
+                    {audioClips.filter(c => c.url.endsWith(".webm")).length}
+                  </span>
+                )}
               </button>
-            ))}
+            );
+          })}
+        </div>
 
-            {selectedMember && (
-              <div className="border-t border-gray-800 px-3 py-2">
-                <button
-                  onClick={() => fetchHistory(selectedMember.id)}
-                  className="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 text-xs"
-                >
-                  <History className="w-3.5 h-3.5" />
-                  Reload trail
-                </button>
-                <p className="text-gray-600 text-xs mt-1">{historyPoints.length} trail points</p>
-              </div>
-            )}
-          </div>
+        {/* ── Tab content ── */}
+        <div className="flex-1 flex overflow-hidden">
 
-          {/* Manage members section */}
-          <MembersTab onRefresh={fetchMembers} />
-        </aside>
-
-        {/* ── Right content: tabbed panel ── */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-
-          {/* Tab bar */}
-          <div className="border-b border-gray-800 shrink-0 flex">
-            {(["map", "audio", "camera"] as const).map((t) => {
-              const Icon = t === "map" ? MapPin : t === "audio" ? Mic : Video;
-              const label = t === "map" ? "Map" : t === "audio" ? "Audio" : "Camera";
-              return (
-                <button
-                  key={t}
-                  onClick={() => setTab(t)}
-                  className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium border-b-2 transition ${
-                    tab === t
-                      ? "border-blue-500 text-blue-400"
-                      : "border-transparent text-gray-500 hover:text-gray-300"
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  {label}
-                  {t === "audio" && audioClips.filter(c => !c.url.endsWith(".webm")).length > 0 && (
-                    <span className="bg-gray-700 text-gray-300 text-[10px] rounded-full px-1.5">
-                      {audioClips.filter(c => !c.url.endsWith(".webm")).length}
-                    </span>
-                  )}
-                  {t === "camera" && audioClips.filter(c => c.url.endsWith(".webm")).length > 0 && (
-                    <span className="bg-gray-700 text-gray-300 text-[10px] rounded-full px-1.5">
-                      {audioClips.filter(c => c.url.endsWith(".webm")).length}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Map tab */}
+          {/* Map tab: sidebar aligned exactly with map */}
           {tab === "map" && (
-            <div className="flex-1 p-3 min-h-0">
-              <MapWrapper
-                members={members}
-                selectedId={selectedId}
-                historyPoints={historyPoints}
-              />
-            </div>
+            <>
+              {/* Members sidebar — same height as map */}
+              <aside className="w-64 shrink-0 border-r border-gray-800 flex flex-col overflow-hidden">
+
+                {/* Live member list */}
+                <div className="flex-1 overflow-y-auto">
+                  <div className="px-3 pt-3 pb-1 flex items-center justify-between">
+                    <p className="text-gray-400 text-xs uppercase font-semibold tracking-wide">Family Members</p>
+                    <div className="flex items-center gap-1">
+                      <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                      <span className="text-green-400 text-xs">{members.filter(m => m.isTracking).length} live</span>
+                    </div>
+                  </div>
+
+                  {members.length === 0 && (
+                    <p className="text-gray-600 text-xs px-3 py-2">No members yet</p>
+                  )}
+
+                  {members.map((m) => (
+                    <button
+                      key={m.id}
+                      onClick={() => handleSelectMember(m.id)}
+                      className={`w-full text-left px-3 py-2.5 flex items-center gap-2.5 transition border-l-2 ${
+                        selectedId === m.id
+                          ? "bg-gray-800 border-blue-500"
+                          : "border-transparent hover:bg-gray-900"
+                      }`}
+                    >
+                      <div
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                        style={{ backgroundColor: m.color }}
+                      >
+                        {m.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-sm font-medium truncate">{m.name}</p>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          {m.isTracking ? (
+                            <><Wifi className="w-3 h-3 text-green-400" /><span className="text-green-400 text-xs">Live</span></>
+                          ) : (
+                            <><WifiOff className="w-3 h-3 text-gray-600" /><span className="text-gray-600 text-xs">Offline</span></>
+                          )}
+                        </div>
+                        {m.lastSeen && (
+                          <p className="text-gray-600 text-xs flex items-center gap-0.5 mt-0.5">
+                            <Clock className="w-2.5 h-2.5" />
+                            {new Date(m.lastSeen).toLocaleTimeString()}
+                          </p>
+                        )}
+                      </div>
+                      {m.locations[0] && <ChevronRight className="w-3.5 h-3.5 text-gray-600" />}
+                    </button>
+                  ))}
+
+                  {selectedMember && (
+                    <div className="border-t border-gray-800 px-3 py-2">
+                      <button
+                        onClick={() => fetchHistory(selectedMember.id)}
+                        className="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 text-xs"
+                      >
+                        <History className="w-3.5 h-3.5" />
+                        Reload trail
+                      </button>
+                      <p className="text-gray-600 text-xs mt-1">{historyPoints.length} trail points</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Manage members section */}
+                <MembersTab onRefresh={fetchMembers} />
+              </aside>
+
+              {/* Map — fills remaining space at same height as sidebar */}
+              <div className="flex-1 p-3 min-h-0">
+                <MapWrapper
+                  members={members}
+                  selectedId={selectedId}
+                  historyPoints={historyPoints}
+                />
+              </div>
+            </>
           )}
 
           {/* Audio tab */}
