@@ -61,3 +61,20 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json(result);
 }
+
+export async function DELETE(req: NextRequest) {
+  const user = await getSessionUser(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (user.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const { userId, before } = await req.json();
+  if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
+
+  let query = supabase.from("Location").delete().eq("userId", userId);
+  if (before) query = query.lte("createdAt", before); // delete only rows older than `before`
+
+  const { error } = await query;
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  return NextResponse.json({ ok: true });
+}

@@ -10,17 +10,21 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const userId = searchParams.get("userId");
-  const limit = Math.min(Number(searchParams.get("limit") ?? "200"), 1000);
+  const limit = Math.min(Number(searchParams.get("limit") ?? "500"), 2000);
+  const since = searchParams.get("since"); // ISO timestamp
 
   if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("Location")
     .select("lat, lng, accuracy, speed, createdAt")
     .eq("userId", userId)
     .order("createdAt", { ascending: false })
     .limit(limit);
 
+  if (since) query = query.gte("createdAt", since);
+
+  const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   return NextResponse.json((data ?? []).reverse());

@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supabase
     .from("User")
-    .select("id, name, email, role, color, isTracking, lastSeen, createdAt, sleepLocked")
+    .select("id, name, email, role, color, isTracking, lastSeen, createdAt, sleepLocked, trackingEnabled")
     .order("createdAt", { ascending: true });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

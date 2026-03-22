@@ -51,6 +51,7 @@ export default function TrackerPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [isPwa, setIsPwa] = useState(false);
   const [sleepLocked, setSleepLocked] = useState(false);
+  const [trackingEnabled, setTrackingEnabled] = useState(true);
   const sleepLockPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Detect if running as installed PWA (standalone mode)
@@ -260,12 +261,16 @@ export default function TrackerPage() {
     setIsCameraRecording(false);
   }, []);
 
-  // Poll admin sleep-lock every 10s while tracking is active
+  // Poll admin status (sleepLocked + trackingEnabled) every 10s while tracking is active
   const startSleepLockPoll = useCallback((uid: string) => {
     const check = async () => {
       try {
-        const res = await fetch(`/api/users/${uid}/sleep-lock`);
-        if (res.ok) { const { sleepLocked: locked } = await res.json(); setSleepLocked(locked); }
+        const res = await fetch(`/api/users/${uid}/status`);
+        if (res.ok) {
+          const { sleepLocked: locked, trackingEnabled: enabled } = await res.json();
+          setSleepLocked(locked);
+          setTrackingEnabled(enabled);
+        }
       } catch { /* ignore */ }
     };
     check();
@@ -279,6 +284,11 @@ export default function TrackerPage() {
 
   const activate = useCallback(async () => {
     setError("");
+
+    if (!trackingEnabled) {
+      setError("Tracking has been disabled by your administrator.");
+      return;
+    }
 
     if (!navigator.geolocation) {
       setError("Geolocation is not supported on this device.");
@@ -340,6 +350,14 @@ export default function TrackerPage() {
     addLog("🔴 Tracker deactivated");
   }, [addLog, stopRecordingCycle, stopCameraRecordingCycle, stopSleepLockPoll]);
 
+  // Auto-deactivate if admin disables tracking while tracker is running
+  useEffect(() => {
+    if (!trackingEnabled && status === "active") {
+      deactivate();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trackingEnabled]);
+
   useEffect(() => {
     return () => {
       if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
@@ -364,6 +382,15 @@ export default function TrackerPage() {
           <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center gap-4">
             <Lock className="w-10 h-10 text-gray-700" />
             <p className="text-gray-700 text-sm">Screen locked by administrator</p>
+          </div>
+        )}
+
+        {/* Tracking disabled overlay */}
+        {!trackingEnabled && (
+          <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center gap-4">
+            <PowerOff className="w-10 h-10 text-red-800" />
+            <p className="text-red-700 text-sm font-semibold">Tracking disabled</p>
+            <p className="text-gray-700 text-xs">Your administrator has turned off tracking.</p>
           </div>
         )}
 

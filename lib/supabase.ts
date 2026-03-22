@@ -36,6 +36,7 @@ export type DbUser = {
   color: string;
   isTracking: boolean;
   sleepLocked: boolean;
+  trackingEnabled: boolean;
   lastSeen: string | null;
   createdAt: string;
 };
@@ -53,6 +54,14 @@ export type DbLocation = {
 };
 
 export type DbAudioClip = {
+  id: string;
+  userId: string;
+  url: string;
+  duration: number | null;
+  createdAt: string;
+};
+
+export type DbVideoClip = {
   id: string;
   userId: string;
   url: string;
