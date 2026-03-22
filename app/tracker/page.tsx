@@ -27,11 +27,6 @@ import {
   Lock,
 } from "lucide-react";
 
-interface BeforeInstallPromptEvent extends Event {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
-}
-
 type Status = "idle" | "active" | "error";
 
 const supabaseBrowser = createClient(
@@ -48,9 +43,6 @@ export default function TrackerPage() {
   const [log, setLog] = useState<string[]>([]);
   const [error, setError] = useState("");
 
-  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [showInstallBanner, setShowInstallBanner] = useState(false);
-  const [showInstallGuide, setShowInstallGuide] = useState(false);
   const [showExplainer, setShowExplainer] = useState(true);
   const [showQr, setShowQr] = useState(false);
   const [magicUrl, setMagicUrl] = useState<string | null>(null);
@@ -114,30 +106,6 @@ export default function TrackerPage() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    const handler = (e: Event) => {
-      e.preventDefault();
-      setInstallPrompt(e as BeforeInstallPromptEvent);
-      setShowInstallBanner(true);
-    };
-    window.addEventListener("beforeinstallprompt", handler);
-    return () => window.removeEventListener("beforeinstallprompt", handler);
-  }, []);
-
-  const handleInstall = async () => {
-    if (installPrompt) {
-      await installPrompt.prompt();
-      const { outcome } = await installPrompt.userChoice;
-      if (outcome === "accepted") {
-        setShowInstallBanner(false);
-        setInstallPrompt(null);
-      }
-    } else {
-      // Fallback for iOS / browsers without install prompt
-      setShowInstallGuide(true);
-    }
-  };
 
   const addLog = useCallback((msg: string) => {
     const time = new Date().toLocaleTimeString();
@@ -485,61 +453,6 @@ export default function TrackerPage() {
         </div>
       </header>
 
-      {/* Install Guide Modal (iOS fallback) */}
-      {showInstallGuide && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-end justify-center p-4">
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-sm">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-white font-bold text-lg">Add to Home Screen</h2>
-              <button onClick={() => setShowInstallGuide(false)}>
-                <X className="w-5 h-5 text-gray-400" />
-              </button>
-            </div>
-            <ol className="text-gray-300 text-sm space-y-3">
-              <li className="flex gap-3">
-                <span className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shrink-0">1</span>
-                <span>Tap the <strong>Share</strong> button at the bottom of Safari (the box with an arrow pointing up)</span>
-              </li>
-              <li className="flex gap-3">
-                <span className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shrink-0">2</span>
-                <span>Scroll down and tap <strong>"Add to Home Screen"</strong></span>
-              </li>
-              <li className="flex gap-3">
-                <span className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shrink-0">3</span>
-                <span>Tap <strong>Add</strong> — the KAS Tracker icon will appear on your home screen</span>
-              </li>
-            </ol>
-            <button
-              onClick={() => setShowInstallGuide(false)}
-              className="mt-5 w-full bg-blue-600 text-white rounded-xl py-3 font-semibold"
-            >
-              Got it
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Download App Banner */}
-      {showInstallBanner && (
-        <div className="bg-blue-900/60 border-b border-blue-700 px-4 py-3 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Download className="w-4 h-4 text-blue-400 shrink-0" />
-            <span className="text-blue-100 text-xs">Install KAS Tracker on your device for best experience</span>
-          </div>
-          <div className="flex gap-2 shrink-0">
-            <button
-              onClick={handleInstall}
-              className="bg-blue-500 hover:bg-blue-400 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition"
-            >
-              Install
-            </button>
-            <button onClick={() => setShowInstallBanner(false)}>
-              <X className="w-4 h-4 text-blue-400" />
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Main */}
       <main className="flex-1 flex flex-col items-center px-4 pt-6 pb-4 gap-6 overflow-y-auto">
 
@@ -741,15 +654,6 @@ export default function TrackerPage() {
           ) : (
             <><Power className="w-10 h-10 text-white" /><span className="text-white text-xs font-bold">START</span></>
           )}
-        </button>
-
-        {/* Download App button */}
-        <button
-            onClick={handleInstall}
-            className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition"
-          >
-            <Download className="w-4 h-4 text-blue-400" />
-            Download App
         </button>
 
         {/* Status indicators */}
