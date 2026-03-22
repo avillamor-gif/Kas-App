@@ -27,19 +27,24 @@ export async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // Not logged in → redirect to login (except for login page itself)
-  if (!user && pathname !== "/login") {
-    return NextResponse.redirect(new URL("/login", request.url));
+  // These pages are public — no session required
+  const publicPaths = ["/login", "/install", "/auth/callback"];
+  if (publicPaths.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
+    // Already logged in → skip login page, but allow /install and /auth/callback always
+    if (user && pathname === "/login") {
+      return NextResponse.redirect(new URL("/", request.url));
+    }
+    return supabaseResponse;
   }
 
-  // Already logged in → don't show login page
-  if (user && pathname === "/login") {
-    return NextResponse.redirect(new URL("/", request.url));
+  // All other pages require a session
+  if (!user) {
+    return NextResponse.redirect(new URL("/login", request.url));
   }
 
   return supabaseResponse;
 }
 
 export const config = {
-  matcher: ["/((?!api/|auth/callback|install|_next/static|_next/image|favicon.ico|manifest.json).*)"],
+  matcher: ["/((?!api/|_next/static|_next/image|favicon.ico|manifest.json).*)"],
 };
