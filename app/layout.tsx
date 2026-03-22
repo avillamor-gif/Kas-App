@@ -16,15 +16,6 @@ export const metadata: Metadata = {
   title: "KAS Family Tracker",
   description: "Real-time family location and safety monitoring",
   manifest: "/manifest.json",
-  icons: {
-    icon: [
-      { url: "/favicon-16.png", sizes: "16x16", type: "image/png" },
-      { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
-      { url: "/icon.svg", type: "image/svg+xml" },
-    ],
-    apple: { url: "/apple-touch-icon.png", sizes: "180x180" },
-    shortcut: "/favicon.ico",
-  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
