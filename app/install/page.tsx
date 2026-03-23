@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Smartphone, Share, MoreVertical, Plus, CheckCircle, Download } from "lucide-react";
+import type { DeferredPrompt } from "../InstallPromptCapture";
 
 type OS = "ios" | "android" | "desktop" | "unknown";
 
@@ -15,85 +16,119 @@ function detectOS(): OS {
   return "unknown";
 }
 
-type InstallPrompt = Event & { prompt: () => void; userChoice: Promise<{ outcome: string }> };
-
-// Store the deferred prompt globally so it survives navigation/re-renders
-let _cachedPrompt: InstallPrompt | null = null;
-
 export default function InstallPage() {
   const router = useRouter();
-  const [phase, setPhase] = useState<"checking" | "android-prompt" | "android-manual" | "ios" | "done" | "desktop">("checking");
+  const [phase, setPhase] = useState<
+    "checking" | "android-ready" | "android-manual" | "ios" | "done" | "desktop"
+  >("checking");
 
   useEffect(() => {
-    const detectedOs = detectOS();
+    const os = detectOS();
 
-    // Already running as PWA — go straight to tracker
+    // Already running as installed PWA → go straight to tracker
     const standalone =
       window.matchMedia("(display-mode: standalone)").matches ||
       (window.navigator as { standalone?: boolean }).standalone === true;
-    if (standalone) { router.replace("/tracker"); return; }
+    if (standalone) {
+      router.replace("/tracker");
+      return;
+    }
 
     window.addEventListener("appinstalled", () => {
       setPhase("done");
       setTimeout(() => router.replace("/tracker"), 1500);
     });
 
-    const tryPrompt = (prompt: InstallPrompt) => {
-      prompt.prompt();
-      prompt.userChoice.then(({ outcome }) => {
-        _cachedPrompt = null;
-        if (outcome === "accepted") {
-          setPhase("done");
-          setTimeout(() => router.replace("/tracker"), 1500);
-        } else {
-          setPhase("android-manual");
-        }
-      });
+    if (os === "ios") {
+      setPhase("ios");
+      return;
+    }
+
+    if (os === "desktop") {
+      setPhase("desktop");
+      return;
+    }
+
+    // Android: check for cached prompt captured by layout
+    const checkPrompt = () => {
+      if (window.__kasInstallPrompt) {
+        setPhase("android-ready");
+      } else {
+        // Poll briefly — prompt may arrive within a few hundred ms
+        let attempts = 0;
+        const interval = setInterval(() => {
+          attempts++;
+          if (window.__kasInstallPrompt) {
+            clearInterval(interval);
+            setPhase("android-ready");
+          } else if (attempts >= 20) {
+            // 2s elapsed, no prompt — show manual instructions
+            clearInterval(interval);
+            setPhase("android-manual");
+          }
+        }, 100);
+        return () => clearInterval(interval);
+      }
     };
 
-    if (detectedOs === "android") {
-      if (_cachedPrompt) {
-        setPhase("android-prompt");
-        tryPrompt(_cachedPrompt);
-      } else {
-        const handler = (e: Event) => {
-          e.preventDefault();
-          _cachedPrompt = e as InstallPrompt;
-          setPhase("android-prompt");
-          tryPrompt(_cachedPrompt);
-        };
-        window.addEventListener("beforeinstallprompt", handler);
-        const timer = setTimeout(() => setPhase("android-manual"), 2000);
-        return () => {
-          window.removeEventListener("beforeinstallprompt", handler);
-          clearTimeout(timer);
-        };
-      }
-    } else if (detectedOs === "ios") {
-      setPhase("ios");
-    } else {
-      setPhase("desktop");
-    }
+    return checkPrompt();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (phase === "checking" || phase === "android-prompt") {
+  const triggerInstall = () => {
+    const prompt = window.__kasInstallPrompt as DeferredPrompt | null;
+    if (!prompt) { setPhase("android-manual"); return; }
+    prompt.prompt();
+    prompt.userChoice.then(({ outcome }) => {
+      window.__kasInstallPrompt = null;
+      if (outcome === "accepted") {
+        setPhase("done");
+        setTimeout(() => router.replace("/tracker"), 1500);
+      } else {
+        setPhase("android-manual");
+      }
+    });
+  };
+
+  /* ── Checking ── */
+  if (phase === "checking") {
     return (
       <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center gap-5">
         <div className="bg-blue-600 w-20 h-20 rounded-3xl flex items-center justify-center shadow-2xl shadow-blue-900">
           <Smartphone className="w-10 h-10 text-white" />
         </div>
-        <div className="text-center">
-          <p className="text-white font-bold text-lg">KAS Tracker</p>
-          <p className="text-gray-400 text-sm mt-1">
-            {phase === "android-prompt" ? "Opening install prompt…" : "Preparing…"}
-          </p>
-        </div>
+        <p className="text-white font-bold text-lg">KAS Tracker</p>
         <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
+  /* ── Android: prompt ready ── */
+  if (phase === "android-ready") {
+    return (
+      <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center gap-6 px-6">
+        <div className="bg-blue-600 w-20 h-20 rounded-3xl flex items-center justify-center shadow-2xl shadow-blue-900">
+          <Smartphone className="w-10 h-10 text-white" />
+        </div>
+        <div className="text-center">
+          <p className="text-white font-bold text-xl">KAS Tracker</p>
+          <p className="text-green-400 text-sm mt-1">✓ Logged in</p>
+        </div>
+        <button
+          onClick={triggerInstall}
+          className="bg-blue-600 hover:bg-blue-500 active:scale-95 transition-all text-white font-bold text-base px-8 py-4 rounded-2xl shadow-xl shadow-blue-900 flex items-center gap-3"
+        >
+          <Download className="w-5 h-5" />
+          Install App
+        </button>
+        <button onClick={() => router.push("/tracker")} className="text-gray-600 text-xs underline underline-offset-2">
+          Skip — open in browser
+        </button>
+      </div>
+    );
+  }
+
+  /* ── Done ── */
   if (phase === "done") {
     return (
       <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center gap-4">
@@ -104,6 +139,7 @@ export default function InstallPage() {
     );
   }
 
+  /* ── iOS ── */
   if (phase === "ios") {
     return (
       <div className="min-h-screen bg-gray-950 flex flex-col">
@@ -117,7 +153,7 @@ export default function InstallPage() {
         <div className="bg-gray-900 border-t border-gray-700 rounded-t-3xl px-6 pt-5 pb-12 flex flex-col gap-4 shadow-2xl">
           <div className="w-10 h-1 bg-gray-700 rounded-full mx-auto" />
           <p className="text-white font-bold text-center">Add to Home Screen</p>
-          <p className="text-gray-400 text-xs text-center">Install KAS Tracker so it runs in the background with GPS &amp; audio.</p>
+          <p className="text-gray-400 text-xs text-center">Install KAS Tracker so it opens like a native app.</p>
           <div className="flex flex-col gap-2.5">
             <div className="flex items-center gap-3 bg-gray-800 rounded-2xl px-4 py-3">
               <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold shrink-0">1</div>
@@ -137,7 +173,7 @@ export default function InstallPage() {
             </div>
           </div>
           <div className="bg-yellow-900/30 border border-yellow-800 rounded-xl px-3 py-2">
-            <p className="text-yellow-300 text-xs font-semibold">⚠️ Must use Safari — Chrome on iPhone cannot install</p>
+            <p className="text-yellow-300 text-xs font-semibold">⚠️ Must use Safari — Chrome on iPhone cannot install PWAs</p>
           </div>
           <button onClick={() => router.push("/tracker")} className="text-gray-600 text-xs text-center underline underline-offset-2">Skip — open in browser</button>
         </div>
@@ -145,6 +181,7 @@ export default function InstallPage() {
     );
   }
 
+  /* ── Android manual (no prompt available) ── */
   if (phase === "android-manual") {
     return (
       <div className="min-h-screen bg-gray-950 flex flex-col">
@@ -178,7 +215,7 @@ export default function InstallPage() {
     );
   }
 
-  // Desktop
+  /* ── Desktop ── */
   return (
     <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center gap-4 px-6">
       <div className="bg-blue-600 w-20 h-20 rounded-3xl flex items-center justify-center shadow-2xl shadow-blue-900">
