@@ -347,20 +347,29 @@ export default function TrackerPage() {
       body: JSON.stringify({ isTracking: true }),
     });
 
-    // Start GPS watch
-    watchIdRef.current = navigator.geolocation.watchPosition(
-      sendLocation,
-      () => addLog("⚠️ GPS error"),
-      { enableHighAccuracy: true, maximumAge: 5000 }
-    );
+    // Start GPS watch — maximumAge:0 forces a fresh fix every time
+    const startWatch = () => {
+      if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = navigator.geolocation.watchPosition(
+        sendLocation,
+        (err) => {
+          addLog(`⚠️ GPS error (${err.code}) — retrying`);
+          // Restart the watch after a brief pause
+          setTimeout(startWatch, 3000);
+        },
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
+      );
+    };
+    startWatch();
 
-    // Also push every 10 seconds via getCurrentPosition as fallback
+    // Also push every 5 seconds via getCurrentPosition as belt-and-suspenders
     locationIntervalRef.current = setInterval(() => {
       navigator.geolocation.getCurrentPosition(sendLocation, () => {}, {
         enableHighAccuracy: true,
-        maximumAge: 10_000,
+        maximumAge: 0,
+        timeout: 10000,
       });
-    }, 10_000);
+    }, 5_000);
 
     // Start audio recording
     await startRecordingCycle();

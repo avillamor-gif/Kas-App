@@ -126,7 +126,20 @@ export default function DashboardPage() {
     }
   }, []);
 
-  // Poll every 10 seconds
+  // Realtime subscription: re-fetch members the instant a new Location row is inserted
+  useEffect(() => {
+    const channel = supabaseBrowser
+      .channel("location-realtime")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "Location" },
+        () => { fetchMembers(); }
+      )
+      .subscribe();
+    return () => { supabaseBrowser.removeChannel(channel); };
+  }, [fetchMembers]);
+
+  // Poll every 10 seconds as fallback + for audio/video
   useEffect(() => {
     fetchMembers();
     fetchAudio();
