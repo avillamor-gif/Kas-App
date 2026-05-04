@@ -53,6 +53,9 @@ export default function TrackerPage() {
   const [sleepLocked, setSleepLocked] = useState(false);
   const [trackingEnabled, setTrackingEnabled] = useState(true);
   const sleepLockPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+  const [consentGiven, setConsentGiven] = useState<boolean | null>(null); // null = not checked yet
+  const [showConsent, setShowConsent] = useState(false);
   // null = checking, false = no session, true = has session
   const [sessionReady, setSessionReady] = useState<boolean | null>(null);
   const [loginEmail, setLoginEmail] = useState("");
@@ -66,6 +69,12 @@ export default function TrackerPage() {
       window.matchMedia("(display-mode: standalone)").matches ||
       (window.navigator as { standalone?: boolean }).standalone === true;
     setIsPwa(standalone);
+  }, []);
+
+  // Check stored consent
+  useEffect(() => {
+    const stored = localStorage.getItem("kas_screen_lock_consent");
+    setConsentGiven(stored === "true");
   }, []);
 
   const cameraStreamRef = useRef<MediaStream | null>(null);
@@ -324,6 +333,34 @@ export default function TrackerPage() {
     setSleepLocked(false);
   }, []);
 
+  const acquireWakeLock = useCallback(async () => {
+    if (!('wakeLock' in navigator)) return;
+    try {
+      wakeLockRef.current = await (navigator as unknown as { wakeLock: { request: (t: string) => Promise<WakeLockSentinel> } }).wakeLock.request('screen');
+      wakeLockRef.current.addEventListener('release', () => { wakeLockRef.current = null; });
+      addLog('🔆 Wake lock acquired');
+    } catch { /* permission denied or not supported */ }
+  }, [addLog]);
+
+  const releaseWakeLock = useCallback(() => {
+    if (wakeLockRef.current) {
+      wakeLockRef.current.release();
+      wakeLockRef.current = null;
+      addLog('🌑 Wake lock released — screen will sleep');
+    }
+  }, [addLog]);
+
+  // When admin toggles sleepLocked: release wake lock to let screen go dark, re-acquire when unlocked
+  useEffect(() => {
+    if (!isActive) return; // only matters while tracking
+    if (sleepLocked) {
+      releaseWakeLock();
+    } else {
+      acquireWakeLock();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sleepLocked]);
+
   const activate = useCallback(async () => {
     setError("");
 
@@ -339,6 +376,9 @@ export default function TrackerPage() {
 
     setStatus("active");
     addLog("✅ Tracker activated");
+
+    // Keep screen on while tracking
+    await acquireWakeLock();
 
     // Notify server
     await fetch("/api/tracking", {
@@ -389,6 +429,7 @@ export default function TrackerPage() {
     stopRecordingCycle();
     stopCameraRecordingCycle();
     stopSleepLockPoll();
+    releaseWakeLock();
 
     await fetch("/api/tracking", {
       method: "POST",
@@ -399,7 +440,7 @@ export default function TrackerPage() {
     setStatus("idle");
     setCoords(null);
     addLog("🔴 Tracker deactivated");
-  }, [addLog, stopRecordingCycle, stopCameraRecordingCycle, stopSleepLockPoll]);
+  }, [addLog, stopRecordingCycle, stopCameraRecordingCycle, stopSleepLockPoll, releaseWakeLock]);
 
   // Auto-deactivate if admin disables tracking while tracker is running
   useEffect(() => {
@@ -484,7 +525,57 @@ export default function TrackerPage() {
     return (
       <div className="min-h-screen bg-gray-950 flex flex-col select-none">
 
-        {/* Sleep lock overlay — full black screen, admin-controlled */}
+        {/* Consent modal — shown once before first START */}
+        {showConsent && (
+          <div className="fixed inset-0 z-60 bg-black/90 flex flex-col items-center justify-center px-6 gap-0">
+            <div className="bg-gray-900 border border-gray-700 rounded-3xl px-6 py-7 flex flex-col gap-5 w-full max-w-sm shadow-2xl">
+              <div className="flex flex-col items-center gap-3">
+                <div className="bg-orange-600 w-14 h-14 rounded-2xl flex items-center justify-center shadow-xl shadow-orange-900">
+                  <Lock className="w-7 h-7 text-white" />
+                </div>
+                <p className="text-white font-bold text-lg text-center">Before you start</p>
+              </div>
+              <div className="flex flex-col gap-3">
+                <div className="bg-gray-800 rounded-2xl px-4 py-3 flex items-start gap-3">
+                  <MapPin className="w-4 h-4 text-green-400 mt-0.5 shrink-0" />
+                  <p className="text-gray-300 text-sm">Your <strong className="text-white">GPS location</strong> will be sent to your administrator in real time.</p>
+                </div>
+                <div className="bg-gray-800 rounded-2xl px-4 py-3 flex items-start gap-3">
+                  <Mic className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
+                  <p className="text-gray-300 text-sm">Your <strong className="text-white">microphone</strong> may be used to record audio clips.</p>
+                </div>
+                <div className="bg-gray-800 rounded-2xl px-4 py-3 flex items-start gap-3">
+                  <Lock className="w-4 h-4 text-orange-400 mt-0.5 shrink-0" />
+                  <p className="text-gray-300 text-sm">Your administrator can <strong className="text-white">lock your screen</strong> remotely. The display will go dark but tracking continues.</p>
+                </div>
+              </div>
+              <div className="bg-yellow-900/30 border border-yellow-800 rounded-xl px-3 py-2">
+                <p className="text-yellow-300 text-xs text-center">By tapping <strong>I Agree</strong> you consent to monitoring while the tracker is active.</p>
+              </div>
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => {
+                    localStorage.setItem('kas_screen_lock_consent', 'true');
+                    setConsentGiven(true);
+                    setShowConsent(false);
+                    activate();
+                  }}
+                  className="bg-blue-600 hover:bg-blue-500 active:scale-95 transition-all text-white font-bold text-base py-4 rounded-2xl shadow-xl shadow-blue-900"
+                >
+                  I Agree — Start Tracking
+                </button>
+                <button
+                  onClick={() => setShowConsent(false)}
+                  className="text-gray-600 text-xs text-center py-2 underline underline-offset-2"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Sleep lock overlay — full black screen, admin-controlled */}}
         {sleepLocked && isActive && (
           <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center gap-4">
             <Lock className="w-10 h-10 text-gray-700" />
@@ -503,7 +594,10 @@ export default function TrackerPage() {
 
         <main className="flex-1 flex flex-col items-center justify-center gap-8 px-4">
           <button
-            onClick={isActive ? deactivate : activate}
+            onClick={isActive ? deactivate : () => {
+            if (consentGiven) { activate(); }
+            else { setShowConsent(true); }
+          }}
             className={`w-52 h-52 rounded-full flex flex-col items-center justify-center gap-3 shadow-2xl border-4 transition-all duration-300 active:scale-95 ${
               isActive
                 ? "bg-red-600 border-red-400 shadow-red-900"
