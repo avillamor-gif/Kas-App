@@ -26,10 +26,15 @@ export default function InstallPage() {
     const os = detectOS();
 
     // Already running as installed PWA → go straight to tracker
-    const standalone =
-      window.matchMedia("(display-mode: standalone)").matches ||
-      (window.navigator as { standalone?: boolean }).standalone === true;
-    if (standalone) {
+    const checkPwa = () => {
+      if (window.matchMedia("(display-mode: standalone)").matches) return true;
+      if ((window.navigator as { standalone?: boolean }).standalone === true) return true;
+      if (window.matchMedia("(display-mode: fullscreen)").matches) return true;
+      if (window.matchMedia("(display-mode: minimal-ui)").matches) return true;
+      return false;
+    };
+    
+    if (checkPwa()) {
       router.replace("/tracker");
       return;
     }

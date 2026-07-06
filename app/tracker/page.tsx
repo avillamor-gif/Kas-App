@@ -65,10 +65,37 @@ export default function TrackerPage() {
 
   // Detect if running as installed PWA (standalone mode)
   useEffect(() => {
-    const standalone =
-      window.matchMedia("(display-mode: standalone)").matches ||
-      (window.navigator as { standalone?: boolean }).standalone === true;
-    setIsPwa(standalone);
+    const checkPwa = () => {
+      // Check display mode (most reliable)
+      if (window.matchMedia("(display-mode: standalone)").matches) {
+        return true;
+      }
+      // Check iOS standalone
+      if ((window.navigator as { standalone?: boolean }).standalone === true) {
+        return true;
+      }
+      // Check if running with full-screen or minimal-ui (PWA indicators)
+      if (window.matchMedia("(display-mode: fullscreen)").matches) {
+        return true;
+      }
+      if (window.matchMedia("(display-mode: minimal-ui)").matches) {
+        return true;
+      }
+      // Check if viewport height == window height (typical for PWA)
+      if (window.outerHeight === window.innerHeight && window.outerWidth === window.innerWidth) {
+        return true;
+      }
+      return false;
+    };
+    
+    const isPwaMode = checkPwa();
+    setIsPwa(isPwaMode);
+    
+    // Log for debugging
+    console.log("PWA detected:", isPwaMode, {
+      standalone: (window.navigator as { standalone?: boolean }).standalone,
+      displayMode: window.matchMedia("(display-mode: standalone)").matches,
+    });
   }, []);
 
   // Check stored consent
