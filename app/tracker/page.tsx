@@ -575,7 +575,7 @@ export default function TrackerPage() {
           </div>
         )}
 
-        {/* Sleep lock overlay — full black screen, admin-controlled */}}
+        {/* Sleep lock overlay — full black screen, admin-controlled */}
         {sleepLocked && isActive && (
           <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center gap-4">
             <Lock className="w-10 h-10 text-gray-700" />
