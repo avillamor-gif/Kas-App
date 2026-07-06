@@ -43,7 +43,7 @@ export default function TrackerPage() {
   const [log, setLog] = useState<string[]>([]);
   const [error, setError] = useState("");
 
-  const [showExplainer, setShowExplainer] = useState(true);
+  const [showExplainer, setShowExplainer] = useState(false);
   const [showQr, setShowQr] = useState(false);
   const [magicUrl, setMagicUrl] = useState<string | null>(null);
   const [magicUrlLoading, setMagicUrlLoading] = useState(false);
