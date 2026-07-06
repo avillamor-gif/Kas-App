@@ -147,6 +147,8 @@ export default function TrackerPage() {
         if (user.user_metadata?.name) setUserName(user.user_metadata.name as string);
         else if (user.email) setUserName(user.email.split("@")[0]);
         setSessionReady(true);
+        // Auto-hide explainer when user is logged in
+        setShowExplainer(false);
       } else {
         setSessionReady(false);
       }
@@ -175,6 +177,8 @@ export default function TrackerPage() {
       if (user.user_metadata?.name) setUserName(user.user_metadata.name as string);
       else if (user.email) setUserName(user.email.split("@")[0]);
       setSessionReady(true);
+      // Auto-hide explainer when user logs in
+      setShowExplainer(false);
     }
   };
 
