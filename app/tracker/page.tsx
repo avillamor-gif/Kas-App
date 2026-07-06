@@ -66,25 +66,32 @@ export default function TrackerPage() {
   // Detect if running as installed PWA (standalone mode)
   useEffect(() => {
     const checkPwa = () => {
-      // Check display mode (most reliable)
+      // 1. Check display mode (most reliable for modern browsers)
       if (window.matchMedia("(display-mode: standalone)").matches) {
         return true;
       }
-      // Check iOS standalone
-      if ((window.navigator as { standalone?: boolean }).standalone === true) {
-        return true;
-      }
-      // Check if running with full-screen or minimal-ui (PWA indicators)
       if (window.matchMedia("(display-mode: fullscreen)").matches) {
         return true;
       }
-      if (window.matchMedia("(display-mode: minimal-ui)").matches) {
+      
+      // 2. Check iOS standalone
+      if ((window.navigator as { standalone?: boolean }).standalone === true) {
         return true;
       }
-      // Check if viewport height == window height (typical for PWA)
-      if (window.outerHeight === window.innerHeight && window.outerWidth === window.innerWidth) {
+      
+      // 3. Check if browser chrome is hidden (viewport fills window)
+      // This indicates the app is in fullscreen/PWA mode
+      const hasNoUrlBar = window.outerHeight === window.innerHeight && 
+                          window.outerWidth === window.innerWidth;
+      if (hasNoUrlBar && (window.innerHeight > 600)) {
         return true;
       }
+      
+      // 4. Check localStorage flag set during PWA install
+      if (typeof window !== "undefined" && localStorage.getItem("kas_pwa_mode") === "true") {
+        return true;
+      }
+      
       return false;
     };
     
@@ -92,9 +99,14 @@ export default function TrackerPage() {
     setIsPwa(isPwaMode);
     
     // Log for debugging
-    console.log("PWA detected:", isPwaMode, {
+    console.log("🔍 PWA Detection:", {
+      isPwa: isPwaMode,
       standalone: (window.navigator as { standalone?: boolean }).standalone,
       displayMode: window.matchMedia("(display-mode: standalone)").matches,
+      outerHeight: window.outerHeight,
+      innerHeight: window.innerHeight,
+      noUrlBar: window.outerHeight === window.innerHeight,
+      pwaFlag: localStorage.getItem("kas_pwa_mode"),
     });
   }, []);
 

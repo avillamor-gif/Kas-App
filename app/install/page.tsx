@@ -40,6 +40,8 @@ export default function InstallPage() {
     }
 
     window.addEventListener("appinstalled", () => {
+      // Mark that PWA is installed
+      localStorage.setItem("kas_pwa_mode", "true");
       setPhase("done");
       setTimeout(() => router.replace("/tracker"), 1500);
     });
