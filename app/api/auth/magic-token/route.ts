@@ -11,6 +11,7 @@ export async function POST(req: NextRequest) {
 
   // Derive the app origin from the incoming request so this works on any domain
   const origin = req.nextUrl.origin;
+  console.log("🔗 Generating magic link for:", session.email, "origin:", origin);
 
   const { data, error } = await supabase.auth.admin.generateLink({
     type: "magiclink",
@@ -21,10 +22,17 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  if (error || !data?.properties?.action_link) {
-    console.error("generateLink error", error);
-    return NextResponse.json({ error: "Failed to generate link" }, { status: 500 });
+  if (error) {
+    console.error("❌ generateLink error:", error);
+    return NextResponse.json({ error: `Failed to generate link: ${error.message}` }, { status: 500 });
   }
+
+  if (!data?.properties?.action_link) {
+    console.error("❌ No action_link in response:", data);
+    return NextResponse.json({ error: "Failed to generate link: No action link returned" }, { status: 500 });
+  }
+
+  console.log("✅ Magic link generated successfully");
 
   // Wrap through our /api/auth/magic proxy so the QR encodes a short app URL
   const encoded = encodeURIComponent(data.properties.action_link);

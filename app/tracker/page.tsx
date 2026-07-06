@@ -198,11 +198,14 @@ export default function TrackerPage() {
     try {
       const res = await fetch("/api/auth/magic-token", { method: "POST" });
       const json = await res.json();
+      console.log("🔗 Magic token response:", json, "status:", res.status);
       if (json.url) {
         setMagicUrl(json.url);
+      } else {
+        console.error("❌ No URL in response:", json.error);
       }
-    } catch {
-      // silently fail — QR will show error state
+    } catch (e) {
+      console.error("❌ Magic token fetch error:", e);
     } finally {
       setMagicUrlLoading(false);
     }
