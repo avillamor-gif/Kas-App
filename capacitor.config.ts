@@ -6,15 +6,24 @@ const config: CapacitorConfig = {
   webDir: 'public',
   server: {
     androidScheme: 'https',
-    url: 'https://kas-app.com', // Change this to your production URL
+    url: 'https://kas-app.com/tracker', // Direct to tracker page
     cleartext: true // Allow HTTP for localhost testing
   },
   plugins: {
+    SplashScreen: {
+      launchShowDuration: 2000
+    },
     Geolocation: {
       permissions: ['location']
     },
     Camera: {
       permissions: ['camera', 'microphone']
+    }
+  },
+  // Hide browser UI in Android WebView
+  platformSpecificOptions: {
+    android: {
+      fullScreen: true
     }
   }
 };

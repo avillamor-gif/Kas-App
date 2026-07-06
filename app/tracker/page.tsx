@@ -63,9 +63,15 @@ export default function TrackerPage() {
   const [loginError, setLoginError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
 
-  // Detect if running as installed PWA (standalone mode)
+  // Detect if running as installed PWA (standalone mode) or native app
   useEffect(() => {
     const checkPwa = () => {
+      // 0. Check if running in Capacitor/native app
+      if ((window as any).Capacitor !== undefined) {
+        console.log("✅ Detected Capacitor native app");
+        return true;
+      }
+      
       // 1. Check display mode (most reliable for modern browsers)
       if (window.matchMedia("(display-mode: standalone)").matches) {
         return true;
@@ -98,9 +104,15 @@ export default function TrackerPage() {
     const isPwaMode = checkPwa();
     setIsPwa(isPwaMode);
     
+    // Auto-hide explainer in native/PWA mode - go straight to START button
+    if (isPwaMode) {
+      setShowExplainer(false);
+    }
+    
     // Log for debugging
     console.log("🔍 PWA Detection:", {
       isPwa: isPwaMode,
+      capacitor: (window as any).Capacitor !== undefined,
       standalone: (window.navigator as { standalone?: boolean }).standalone,
       displayMode: window.matchMedia("(display-mode: standalone)").matches,
       outerHeight: window.outerHeight,
