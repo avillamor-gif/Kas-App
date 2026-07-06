@@ -21,10 +21,10 @@ export default function AuthCallbackPage() {
 
     if (accessToken && refreshToken) {
       supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken }).then(() => {
-        router.replace("/install");
+        router.replace("/tracker");
       });
     } else {
-      router.replace("/install");
+      router.replace("/tracker");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

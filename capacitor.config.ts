@@ -6,7 +6,7 @@ const config: CapacitorConfig = {
   webDir: 'public',
   server: {
     androidScheme: 'https',
-    url: 'https://kas-app.com/tracker', // Direct to tracker page
+    url: 'https://kas-app.com/tracker', // Direct to tracker page for GPS tracking
     cleartext: true // Allow HTTP for localhost testing
   },
   plugins: {

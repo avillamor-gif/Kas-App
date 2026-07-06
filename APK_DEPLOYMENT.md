@@ -1,5 +1,13 @@
 # Android APK Distribution - Implementation Guide
 
+## ✅ Latest Update (July 7, 2026)
+
+**Fixed**: Native app mode now auto-hides install prompts
+- Capacitor properly detects native app execution
+- Tracker page automatically skips "How it Works" explainer in native mode
+- Members see START button immediately upon opening app
+- Fullscreen Android WebView configured for immersive experience
+
 ## ✅ Completed Setup
 
 ### 1. Infrastructure Ready
@@ -32,31 +40,36 @@
 
 ## 🔄 Next: Build Real APK (For Production)
 
+> **Important**: Rebuild APK to include the native app fixes (Capacitor detection, auto-hide install prompt)
+
 ### Prerequisites to Install
-**Java Development Kit (JDK 11):**
+**Java Development Kit (JDK 17 LTS):**
 ```bash
-brew install openjdk@11
-brew link openjdk@11 --force
+brew install openjdk@17
+brew link openjdk@17 --force
 ```
 
-**Android SDK:**
-- Download: https://developer.android.com/studio/command-line
-- Extract to: `~/Library/Android/sdk`
-- Accept licenses via: `sdkmanager --licenses`
+**Verify Java Version:**
+```bash
+/usr/libexec/java_home -v 17  # Should return path to Java 17
+# OR
+/opt/homebrew/opt/openjdk@17/bin/java -version
 
 ### Build APK
 ```bash
+# First sync web assets
+npm run build
+npx cap sync android
+
+# Build APK
 cd /Users/leopura/kas-app/android
-export JAVA_HOME="/opt/homebrew/opt/openjdk@11"
-
-# Clean build
+# Gradle uses Java 17 (configured in gradle.properties)
 ./gradlew clean
-
-# Build debug APK
 ./gradlew assembleDebug
 
-# Build release APK (requires signing key)
-./gradlew assembleRelease
+# For troubleshooting, explicitly set JAVA_HOME:
+export JAVA_HOME=$(/usr/libexec/java_home -v 17)
+./gradlew assembleDebug
 ```
 
 ### Output Location

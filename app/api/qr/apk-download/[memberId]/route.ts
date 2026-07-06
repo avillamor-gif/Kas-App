@@ -10,9 +10,10 @@ export async function GET(
   try {
     const { memberId } = await params;
 
-    // Construct APK download URL
-    const baseUrl =
-      process.env.NEXT_PUBLIC_BASE_URL || "https://kas-app.com";
+    // Construct APK download URL using current request domain
+    const host = req.headers.get("host") || "kas-app.com";
+    const protocol = req.headers.get("x-forwarded-proto") || "https";
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || `${protocol}://${host}`;
     const downloadUrl = `${baseUrl}/api/download/apk/${memberId}`;
 
     // Generate QR code as PNG data URL
