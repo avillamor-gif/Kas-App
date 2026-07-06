@@ -6,8 +6,8 @@ const config: CapacitorConfig = {
   webDir: 'public',
   server: {
     androidScheme: 'https',
-    url: 'https://kastracker.avillamor.com/tracker',
-    cleartext: true // Allow HTTP for localhost testing
+    url: 'http://192.168.100.9:3001/tracker', // Local dev server for testing
+    cleartext: true
   },
   plugins: {
     SplashScreen: {
