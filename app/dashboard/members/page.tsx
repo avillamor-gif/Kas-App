@@ -62,6 +62,7 @@ export default function MembersPage() {
   const [qrUrl, setQrUrl] = useState<string | null>(null);
   const [qrLoading, setQrLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [qrMode, setQrMode] = useState<"login" | "download">("login");
 
   const fetchMembers = useCallback(async () => {
     const res = await fetch("/api/users");
@@ -117,9 +118,15 @@ export default function MembersPage() {
     setQrUrl(null);
     setQrLoading(true);
     try {
-      // Generate a unique one-time magic login link for this specific member.
-      // Scanning the QR will log them in and land on /install to prompt PWA install.
-      const res = await fetch(`/api/auth/magic-token/${member.id}`, { method: "POST" });
+      let endpoint = "";
+      if (qrMode === "login") {
+        // Generate a unique one-time magic login link for this specific member.
+        endpoint = `/api/auth/magic-token/${member.id}`;
+      } else {
+        // Generate APK download link for member
+        endpoint = `/api/qr/apk-download/${member.id}`;
+      }
+      const res = await fetch(endpoint, { method: qrMode === "login" ? "POST" : "GET" });
       const json = await res.json();
       if (json.url) {
         setQrUrl(json.url);
@@ -319,9 +326,14 @@ export default function MembersPage() {
                     qrMemberId={qrMemberId}
                     qrUrl={qrUrl}
                     qrLoading={qrLoading}
+                    qrMode={qrMode}
+                    setQrMode={setQrMode}
                     copied={copied}
-                    onEdit={(id) => { setEditId(id); setEditForm({ name: m.name, role: m.role, color: m.color }); }}
+                    onEdit={(id) => { setEditId(id); const member = members.find(x => x.id === id); if (member) setEditForm({ name: member.name, role: member.role, color: member.color }); }}
                     onDelete={handleDelete}
+                    onEditSave={() => handleEdit(editId!)}
+                    onEditCancel={() => setEditId(null)}
+                    onEditFormChange={(field, value) => setEditForm((f) => ({ ...f, [field]: value }))}
                     onPatch={patch}
                     onQr={handleQr}
                     onCopy={handleCopy}
@@ -339,6 +351,8 @@ export default function MembersPage() {
                     qrMemberId={qrMemberId}
                     qrUrl={qrUrl}
                     qrLoading={qrLoading}
+                    qrMode={qrMode}
+                    setQrMode={setQrMode}
                     copied={copied}
                     onEdit={(id) => { setEditId(id); setEditForm({ name: m.name, role: m.role, color: m.color }); }}
                     onEditSave={handleEdit}
@@ -371,6 +385,8 @@ export default function MembersPage() {
                     qrMemberId={qrMemberId}
                     qrUrl={qrUrl}
                     qrLoading={qrLoading}
+                    qrMode={qrMode}
+                    setQrMode={setQrMode}
                     copied={copied}
                     onEdit={(id) => { setEditId(id); setEditForm({ name: m.name, role: m.role, color: m.color }); }}
                     onDelete={handleDelete}
@@ -391,6 +407,8 @@ export default function MembersPage() {
                     qrMemberId={qrMemberId}
                     qrUrl={qrUrl}
                     qrLoading={qrLoading}
+                    qrMode={qrMode}
+                    setQrMode={setQrMode}
                     copied={copied}
                     onEdit={(id) => { setEditId(id); setEditForm({ name: m.name, role: m.role, color: m.color }); }}
                     onEditSave={handleEdit}
@@ -418,6 +436,8 @@ function MemberGridCard({
   qrMemberId,
   qrUrl,
   qrLoading,
+  qrMode,
+  setQrMode,
   copied,
   onEdit,
   onDelete,
@@ -429,6 +449,8 @@ function MemberGridCard({
   qrMemberId: string | null;
   qrUrl: string | null;
   qrLoading: boolean;
+  qrMode: "login" | "download";
+  setQrMode: (mode: "login" | "download") => void;
   copied: boolean;
   onEdit: (id: string) => void;
   onDelete: (id: string, name: string) => void;
@@ -552,6 +574,30 @@ function MemberGridCard({
       {/* QR panel */}
       {showQr && (
         <div className="border-t border-gray-800 px-3 py-3 bg-gray-900/60">
+          {/* Mode tabs */}
+          <div className="flex items-center gap-1 mb-3">
+            <button
+              onClick={() => setQrMode("login")}
+              className={`text-xs px-2 py-1 rounded transition ${
+                qrMode === "login"
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-800 text-gray-400 hover:text-gray-300"
+              }`}
+            >
+              Auto-login
+            </button>
+            <button
+              onClick={() => setQrMode("download")}
+              className={`text-xs px-2 py-1 rounded transition ${
+                qrMode === "download"
+                  ? "bg-green-600 text-white"
+                  : "bg-gray-800 text-gray-400 hover:text-gray-300"
+              }`}
+            >
+              Download App
+            </button>
+          </div>
+
           {qrLoading ? (
             <p className="text-gray-500 text-xs text-center">Generating…</p>
           ) : qrUrl ? (
@@ -559,7 +605,11 @@ function MemberGridCard({
               <div className="bg-white p-2 rounded-xl">
                 <QRCodeSVG value={qrUrl} size={110} />
               </div>
-              <p className="text-gray-500 text-[10px] text-center">Scan to install &amp; auto-login · expires 24h</p>
+              <p className="text-gray-500 text-[10px] text-center">
+                {qrMode === "login"
+                  ? "Scan to auto-login · expires 24h"
+                  : "Scan to download & install app"}
+              </p>
               <div className="flex items-center gap-2 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 w-full">
                 <p className="text-gray-400 text-[10px] truncate flex-1">{qrUrl}</p>
                 <button onClick={() => onCopy(qrUrl)} className="text-gray-500 hover:text-white transition shrink-0">
@@ -583,6 +633,8 @@ function MemberCard({
   qrMemberId,
   qrUrl,
   qrLoading,
+  qrMode,
+  setQrMode,
   copied,
   onEdit,
   onEditSave,
@@ -599,6 +651,8 @@ function MemberCard({
   qrMemberId: string | null;
   qrUrl: string | null;
   qrLoading: boolean;
+  qrMode: "login" | "download";
+  setQrMode: (mode: "login" | "download") => void;
   copied: boolean;
   onEdit: (id: string) => void;
   onEditSave: (id: string) => void;
@@ -774,9 +828,35 @@ function MemberCard({
                 <QRCodeSVG value={qrUrl} size={140} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-white text-sm font-medium mb-1">Tracker install link</p>
+                <div className="flex items-center gap-1 mb-2">
+                  <button
+                    onClick={() => setQrMode("login")}
+                    className={`text-xs px-2 py-1 rounded transition ${
+                      qrMode === "login"
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-800 text-gray-400 hover:text-gray-300"
+                    }`}
+                  >
+                    Auto-login
+                  </button>
+                  <button
+                    onClick={() => setQrMode("download")}
+                    className={`text-xs px-2 py-1 rounded transition ${
+                      qrMode === "download"
+                        ? "bg-green-600 text-white"
+                        : "bg-gray-800 text-gray-400 hover:text-gray-300"
+                    }`}
+                  >
+                    Download App
+                  </button>
+                </div>
+                <p className="text-white text-sm font-medium mb-1">
+                  {qrMode === "login" ? "Tracker install & login link" : "App download link"}
+                </p>
                 <p className="text-gray-500 text-xs mb-3">
-                  Share this QR with <strong className="text-gray-300">{m.name}</strong>. Scanning it will <strong className="text-gray-300">automatically log them in</strong> and prompt them to install the app. Link expires in 24 hours.
+                  {qrMode === "login"
+                    ? `Share this QR with ${m.name}. Scanning will automatically log them in and prompt app installation. Link expires in 24 hours.`
+                    : `Share this QR with ${m.name}. Scanning will download and install the app on their Android device.`}
                 </p>
                 <div className="flex items-center gap-2 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2">
                   <p className="text-gray-400 text-xs truncate flex-1">{qrUrl}</p>
