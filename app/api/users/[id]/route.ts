@@ -35,7 +35,13 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (user.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   if (user.id === id) return NextResponse.json({ error: "Cannot delete yourself" }, { status: 400 });
 
-  const { error } = await supabase.from("User").delete().eq("id", id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  // 1. Delete from User table
+  const { error: dbError } = await supabase.from("User").delete().eq("id", id);
+  if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
+
+  // 2. Delete from Supabase Auth
+  const { error: authError } = await supabase.auth.admin.deleteUser(id);
+  if (authError) return NextResponse.json({ error: `User deleted from database but failed to delete from Auth: ${authError.message}` }, { status: 500 });
+
   return NextResponse.json({ ok: true });
 }
