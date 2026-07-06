@@ -71,7 +71,7 @@ export default function TrackerPage() {
     const checkPwa = () => {
       // 0. Check if running in Capacitor/native app
       if ((window as any).Capacitor !== undefined) {
-        console.log("✅ Detected Capacitor native app");
+        console.log("✅ Detected Capacitor native app immediately");
         return true;
       }
       
@@ -104,6 +104,7 @@ export default function TrackerPage() {
       return false;
     };
     
+    // Check immediately
     const isPwaMode = checkPwa();
     setIsPwa(isPwaMode);
     
@@ -113,7 +114,7 @@ export default function TrackerPage() {
     }
     
     // Log for debugging
-    console.log("🔍 PWA Detection:", {
+    console.log("🔍 PWA Detection (immediate):", {
       isPwa: isPwaMode,
       capacitor: (window as any).Capacitor !== undefined,
       standalone: (window.navigator as { standalone?: boolean }).standalone,
@@ -123,6 +124,33 @@ export default function TrackerPage() {
       noUrlBar: window.outerHeight === window.innerHeight,
       pwaFlag: localStorage.getItem("kas_pwa_mode"),
     });
+
+    // Also wait for capacitorReady event in case Capacitor loads after component mount
+    const handleCapacitorReady = () => {
+      console.log("✅ capacitorReady event fired - Capacitor is now available");
+      setIsPwa(true);
+      setShowExplainer(false);
+    };
+    
+    if ((window as any).capacitorReady) {
+      handleCapacitorReady();
+    } else {
+      document.addEventListener('capacitorReady', handleCapacitorReady);
+    }
+
+    // Also check after a short delay in case Capacitor hasn't fully loaded yet
+    const timeout = setTimeout(() => {
+      if ((window as any).Capacitor !== undefined && !isPwaMode) {
+        console.log("✅ Capacitor detected after delay");
+        setIsPwa(true);
+        setShowExplainer(false);
+      }
+    }, 500);
+
+    return () => {
+      clearTimeout(timeout);
+      document.removeEventListener('capacitorReady', handleCapacitorReady);
+    };
   }, []);
 
   // Check stored consent
