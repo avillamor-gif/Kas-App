@@ -47,6 +47,9 @@ export default function TrackerPage() {
   const [showQr, setShowQr] = useState(false);
   const [magicUrl, setMagicUrl] = useState<string | null>(null);
   const [magicUrlLoading, setMagicUrlLoading] = useState(false);
+  const [showApkQr, setShowApkQr] = useState(false);
+  const [apkQrUrl, setApkQrUrl] = useState<string | null>(null);
+  const [apkQrLoading, setApkQrLoading] = useState(false);
   const [isCameraRecording, setIsCameraRecording] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [isPwa, setIsPwa] = useState(false);
@@ -208,6 +211,32 @@ export default function TrackerPage() {
       console.error("❌ Magic token fetch error:", e);
     } finally {
       setMagicUrlLoading(false);
+    }
+  };
+
+  const handleOpenApkQr = async () => {
+    const next = !showApkQr;
+    setShowApkQr(next);
+    if (!next) return;
+    if (!userId) return;
+    // Generate APK download QR code
+    setApkQrUrl(null);
+    setApkQrLoading(true);
+    try {
+      const res = await fetch(`/api/qr/apk-download/${userId}`);
+      if (res.ok) {
+        // The endpoint returns an image, so we need the image URL
+        const blob = await res.blob();
+        const qrImageUrl = URL.createObjectURL(blob);
+        setApkQrUrl(qrImageUrl);
+        console.log("✅ APK QR generated");
+      } else {
+        console.error("❌ Failed to generate APK QR:", res.status);
+      }
+    } catch (e) {
+      console.error("❌ APK QR fetch error:", e);
+    } finally {
+      setApkQrLoading(false);
     }
   };
 
@@ -844,6 +873,62 @@ export default function TrackerPage() {
           )}
         </div>
 
+        {/* APK Download QR Code card — collapsible */}
+        <div className="w-full max-w-2xl">
+          <button
+            onClick={handleOpenApkQr}
+            className="w-full flex items-center justify-between bg-emerald-950/60 border border-emerald-800 rounded-2xl px-4 py-3 text-left"
+          >
+            <div className="flex items-center gap-2">
+              <Download className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span className="text-emerald-200 text-sm font-semibold">Download App — Scan to get APK</span>
+            </div>
+            {showApkQr
+              ? <ChevronUp className="w-4 h-4 text-emerald-400" />
+              : <ChevronDown className="w-4 h-4 text-emerald-400" />}
+          </button>
+
+          {showApkQr && (
+            <div className="bg-gray-900 border border-emerald-800 border-t-0 rounded-b-2xl px-4 pb-6 pt-4 flex flex-col items-center gap-4">
+              <p className="text-gray-400 text-xs text-center max-w-sm leading-relaxed">
+                Share this QR code with members who want to install KAS Tracker as a native app. Scanning it will download the APK file to their phone.
+              </p>
+
+              {apkQrLoading && (
+                <div className="flex flex-col items-center gap-3 py-6">
+                  <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                  <p className="text-gray-500 text-xs">Generating APK download QR code…</p>
+                </div>
+              )}
+
+              {!apkQrLoading && apkQrUrl && (
+                <>
+                  <div className="bg-white rounded-2xl p-4 shadow-lg">
+                    <img src={apkQrUrl} alt="APK Download QR Code" style={{ width: '200px', height: '200px' }} />
+                  </div>
+                  <div className="flex flex-col items-center gap-2">
+                    <p className="text-emerald-300 text-[11px] font-semibold">APK Download Link</p>
+                    <div className="flex items-center gap-1.5">
+                      <Smartphone className="w-3.5 h-3.5 text-green-400" />
+                      <span className="text-gray-400 text-[11px]">Android: Camera or Google Lens to scan</span>
+                    </div>
+                    <button
+                      onClick={handleOpenApkQr}
+                      className="mt-1 text-[11px] text-emerald-400 underline underline-offset-2"
+                    >
+                      Regenerate QR code
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {!apkQrLoading && !apkQrUrl && (
+                <p className="text-red-400 text-xs">Failed to generate APK QR code. Please try again.</p>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* QR Code card — collapsible */}
         <div className="w-full max-w-2xl">
           <button
@@ -852,7 +937,7 @@ export default function TrackerPage() {
           >
             <div className="flex items-center gap-2">
               <QrCode className="w-4 h-4 text-violet-400 shrink-0" />
-              <span className="text-violet-200 text-sm font-semibold">Scan QR Code to download App</span>
+              <span className="text-violet-200 text-sm font-semibold">Scan QR Code to auto-login</span>
             </div>
             {showQr
               ? <ChevronUp className="w-4 h-4 text-violet-400" />
