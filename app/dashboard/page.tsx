@@ -136,8 +136,8 @@ export default function DashboardPage() {
         () => { fetchMembers(); }
       )
       .subscribe();
-    return () => { supabaseBrowser.removeChannel(channel); };
-  }, [fetchMembers]);
+    return () => { channel.unsubscribe(); };
+  }, []);
 
   // Poll every 10 seconds as fallback + for audio/video
   useEffect(() => {
