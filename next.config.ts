@@ -1,7 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: "export", // Static export for Capacitor native app
   typescript: {
     // TypeScript errors surface via `tsc --noEmit` in CI; skip re-check during Vercel build
     ignoreBuildErrors: true,
