@@ -15,12 +15,21 @@ const config: CapacitorConfig = {
     },
     Geolocation: {
       permissions: ['location']
+    },
+    ScreenBrightness: {},
+    Screen: {
+      screenOrientationLock: 'portrait'
+    },
+    App: {
+      exitOnBackButton: false
     }
   },
   // Hide browser UI in Android WebView
   platformSpecificOptions: {
     android: {
-      fullScreen: true
+      fullScreen: true,
+      allowMixedContent: true,
+      webContentsDebuggingEnabled: false
     }
   }
 };

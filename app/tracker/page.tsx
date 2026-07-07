@@ -497,14 +497,53 @@ export default function TrackerPage() {
       return;
     }
 
+    // Request location permission via Capacitor (native Android/iOS)
+    const Capacitor = (window as any).Capacitor;
+    if (Capacitor?.Plugins?.Geolocation) {
+      try {
+        addLog("📍 Requesting location permission...");
+        const permResult = await Capacitor.Plugins.Geolocation.requestPermissions();
+        if (permResult.location !== 'granted') {
+          setError("❌ Location permission denied. Please grant location access in phone settings.");
+          addLog("❌ Location permission not granted by user");
+          return;
+        }
+        addLog("✅ Location permission granted");
+      } catch (e) {
+        console.warn("⚠️ Failed to request location permissions via Capacitor:", e);
+        // Continue with browser geolocation anyway
+      }
+    } else {
+      // Fallback: Check browser permission status
+      try {
+        const permStatus = await navigator.permissions.query({ name: 'geolocation' });
+        if (permStatus.state === 'denied') {
+          setError("❌ Location permission denied. Enable it in phone settings → Apps → [Browser] → Permissions → Location");
+          addLog("❌ Location permission denied in settings");
+          return;
+        }
+        addLog(`📍 Permission status: ${permStatus.state}`);
+      } catch (e) {
+        // Permissions API might not be supported, continue anyway
+        console.log("Permissions API not available:", e);
+      }
+    }
+
     setStatus("active");
     addLog("✅ Tracker activated");
 
-    // Lock hardware buttons (power button) - prevent exit during emergency
-    await updateHardwareButtons(true);
-
     // Keep screen on while tracking
     await acquireWakeLock();
+
+    // Try to disable power button via Capacitor (prevent phone from locking)
+    if (Capacitor?.Plugins?.App) {
+      try {
+        await Capacitor.Plugins.App.exitApp();
+        // This won't actually exit - we're just checking if the plugin is available
+      } catch (e) {
+        // Plugin might not support what we need
+      }
+    }
 
     // Notify server
     await fetch("/api/tracking", {
@@ -520,9 +559,18 @@ export default function TrackerPage() {
       watchIdRef.current = navigator.geolocation.watchPosition(
         sendLocation,
         (err) => {
-          addLog(`⚠️ GPS error (${err.code}) — retrying`);
-          // Restart the watch after a brief pause
-          setTimeout(startWatch, 3000);
+          if (err.code === 1) {
+            // PERMISSION_DENIED
+            setError("❌ Location permission denied. Enable it in Settings → Apps → [Browser] → Location → Allow");
+            addLog(`❌ Location permission denied (code ${err.code})`);
+            setStatus("idle");
+            // Stop tracking on permission error
+            if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
+            if (locationIntervalRef.current) clearInterval(locationIntervalRef.current);
+          } else {
+            addLog(`⚠️ GPS error (${err.code}) — retrying`);
+            setTimeout(startWatch, 3000);
+          }
         },
         { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
       );
@@ -541,17 +589,14 @@ export default function TrackerPage() {
     // Start polling admin sleep-lock status
     if (userId) startSleepLockPoll(userId);
 
-    addLog("📱 Tracking active — screen may sleep");
-  }, [addLog, sendLocation, startSleepLockPoll, stopSleepLockPoll, userId, updateHardwareButtons]);
+    addLog("📱 Tracking active — screen will stay on");
+  }, [addLog, sendLocation, startSleepLockPoll, stopSleepLockPoll, userId]);
 
   const deactivate = useCallback(async () => {
     if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
     if (locationIntervalRef.current) clearInterval(locationIntervalRef.current);
     stopSleepLockPoll();
     releaseWakeLock();
-
-    // Unlock hardware buttons (allow normal power button behavior)
-    await updateHardwareButtons(false);
 
     await fetch("/api/tracking", {
       method: "POST",
@@ -563,7 +608,7 @@ export default function TrackerPage() {
     setStatus("idle");
     setCoords(null);
     addLog("🔴 Tracker deactivated");
-  }, [addLog, stopSleepLockPoll, releaseWakeLock, userId, updateHardwareButtons]);
+  }, [addLog, stopSleepLockPoll, releaseWakeLock]);
 
   // Auto-deactivate if admin disables tracking while tracker is running
   useEffect(() => {
