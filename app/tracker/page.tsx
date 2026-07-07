@@ -359,9 +359,10 @@ export default function TrackerPage() {
     };
   }, []);
 
-  // Auto-start tracking when consent is given
+  // Auto-start tracking when consent is given — fires only once
   useEffect(() => {
-    if (consentGiven && !isActive && sessionReady === true && isPwa) {
+    if (consentGiven && sessionReady === true && isPwa && !hasAutoStartedRef.current) {
+      hasAutoStartedRef.current = true;
       console.log("🚀 Auto-starting silent background tracking...");
       activate();
     }
@@ -453,6 +454,8 @@ export default function TrackerPage() {
 
   const watchIdRef = useRef<number | null>(null);
   const locationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const activatingRef = useRef(false); // guard against concurrent activate() calls
+  const hasAutoStartedRef = useRef(false); // ensure auto-start only runs once
 
 
   const addLog = useCallback((msg: string) => {
@@ -549,16 +552,20 @@ export default function TrackerPage() {
   }, [sleepLocked]);
 
   const activate = useCallback(async () => {
+    if (activatingRef.current) return; // prevent concurrent calls
+    activatingRef.current = true;
     setError("");
-    setPermissionCheckingMode(false); // Clear permission checking mode when activating
+    setPermissionCheckingMode(false);
 
     if (!trackingEnabled) {
       setError("Tracking has been disabled by your administrator.");
+      activatingRef.current = false;
       return;
     }
 
     if (!navigator.geolocation) {
       setError("Geolocation is not supported on this device.");
+      activatingRef.current = false;
       return;
     }
 
@@ -574,13 +581,15 @@ export default function TrackerPage() {
         if (Capacitor?.Plugins?.Geolocation) {
           const permResult = await Capacitor.Plugins.Geolocation.requestPermissions();
           if (permResult.location !== 'granted') {
-            setError(""); // Hide error in app mode
+            setError("");
             addLog("⚠️ Permission still denied - retrying...");
+            activatingRef.current = false;
             return;
           }
         } else {
-          setError(""); // Hide error in app mode
+          setError("");
           addLog("⚠️ Permission denied - cannot continue");
+          activatingRef.current = false;
           return;
         }
       }
@@ -611,20 +620,12 @@ export default function TrackerPage() {
         sendLocation,
         (err) => {
           if (err.code === 1) {
-            // PERMISSION_DENIED - app not allowed
-            // In silent mode, hide error and keep trying
-            addLog(`⚠️ Location permission denied - will retry...`);
+            // PERMISSION_DENIED — stop and wait; requestLocationPermissions effect will retry
+            addLog(`⚠️ Location permission denied`);
             setStatus("idle");
-            // Stop tracking on permission error
+            activatingRef.current = false;
             if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
             if (locationIntervalRef.current) clearInterval(locationIntervalRef.current);
-            // Retry permission request after 5 seconds
-            setTimeout(() => {
-              if (consentGiven) {
-                console.log("🔄 Retrying activation after permission denial...");
-                activate();
-              }
-            }, 5000);
           } else if (err.code === 2) {
             // POSITION_UNAVAILABLE - GPS/Location Service is OFF on phone
             addLog(`⚠️ Location Service OFF - opening settings...`);
@@ -656,6 +657,7 @@ export default function TrackerPage() {
     if (userId) startSleepLockPoll(userId);
 
     addLog("📱 Tracking active");
+    activatingRef.current = false; // release guard — tracking is running
 
     // Minimize app to background — phone shows home screen, GPS runs silently
     const Capacitor2 = (window as any).Capacitor;
