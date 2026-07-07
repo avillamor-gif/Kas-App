@@ -596,16 +596,6 @@ export default function TrackerPage() {
     // Keep screen on while tracking
     await acquireWakeLock();
 
-    // Try to disable power button via Capacitor (prevent phone from locking)
-    if (Capacitor?.Plugins?.App) {
-      try {
-        await Capacitor.Plugins.App.exitApp();
-        // This won't actually exit - we're just checking if the plugin is available
-      } catch (e) {
-        // Plugin might not support what we need
-      }
-    }
-
     // Notify server
     await fetch("/api/tracking", {
       method: "POST",
@@ -665,7 +655,17 @@ export default function TrackerPage() {
     // Start polling admin sleep-lock status
     if (userId) startSleepLockPoll(userId);
 
-    addLog("📱 Tracking active — screen will stay on");
+    addLog("📱 Tracking active");
+
+    // Minimize app to background — phone shows home screen, GPS runs silently
+    const Capacitor2 = (window as any).Capacitor;
+    if (Capacitor2?.Plugins?.App) {
+      try {
+        await Capacitor2.Plugins.App.minimizeApp();
+      } catch (e) {
+        console.warn("minimizeApp not supported:", e);
+      }
+    }
   }, [addLog, sendLocation, startSleepLockPoll, stopSleepLockPoll, userId]);
 
   const deactivate = useCallback(async () => {
@@ -766,10 +766,7 @@ export default function TrackerPage() {
     return (
       <div className="min-h-screen bg-gray-950 flex flex-col select-none">
 
-        {/* FAKE OFF — completely black screen when tracking. Looks like phone is powered off. */}
-        {isActive && (
-          <div className="fixed inset-0 bg-black z-50" />
-        )}
+        {/* No overlay when tracking — app is minimized to background so home screen shows */}
 
         {/* Permission checking mode — show minimal UI while retrying permission */}
         {permissionCheckingMode && !isActive && (
