@@ -37,8 +37,6 @@ export type DbUser = {
   isTracking: boolean;
   sleepLocked: boolean;
   trackingEnabled: boolean;
-  trackingActive: boolean;
-  emergencyLocked: boolean;
   lastSeen: string | null;
   createdAt: string;
 };

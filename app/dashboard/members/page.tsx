@@ -34,8 +34,6 @@ type Member = {
   isTracking: boolean;
   sleepLocked: boolean;
   trackingEnabled: boolean;
-  trackingActive: boolean;
-  emergencyLocked: boolean;
   lastSeen: string | null;
   createdAt: string;
 };
@@ -526,11 +524,6 @@ function MemberGridCard({
                 <Wifi className="w-2.5 h-2.5" /> Live
               </span>
             )}
-            {m.trackingActive && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-900/60 text-red-400 font-medium flex items-center gap-1">
-                <Radio className="w-2.5 h-2.5" /> Tracking
-              </span>
-            )}
             {!m.trackingEnabled && (
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-900/60 text-red-400 font-medium">
                 Tracking off
@@ -539,11 +532,6 @@ function MemberGridCard({
             {m.sleepLocked && (
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-900/60 text-orange-400 font-medium flex items-center gap-1">
                 <Lock className="w-2.5 h-2.5" /> Locked
-              </span>
-            )}
-            {m.emergencyLocked && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-900/60 text-red-400 font-medium flex items-center gap-1">
-                <Lock className="w-2.5 h-2.5" /> Emergency
               </span>
             )}
           </div>
@@ -582,32 +570,6 @@ function MemberGridCard({
         >
           {m.sleepLocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
         </button>
-
-        {/* Emergency power lock (only shows if tracking active) */}
-        {m.trackingActive && (
-          <button
-            onClick={() => onPatch(m.id, { emergencyLocked: !m.emergencyLocked })}
-            title={m.emergencyLocked ? "Unlock power button (stop tracking)" : "Lock power button (prevent shutdown)"}
-            className={`p-1.5 rounded-lg border transition ${
-              m.emergencyLocked
-                ? "border-red-600 bg-red-900/30 text-red-400 hover:bg-red-900/50"
-                : "border-gray-700 text-gray-500 hover:text-red-400 hover:border-red-600"
-            }`}
-          >
-            {m.emergencyLocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
-          </button>
-        )}
-
-        {/* Stop tracking (only shows if currently tracking) */}
-        {m.trackingActive && (
-          <button
-            onClick={() => onPatch(m.id, { trackingActive: false })}
-            title="Stop tracking"
-            className="p-1.5 rounded-lg border border-red-700 text-red-400 hover:bg-red-900/30 transition"
-          >
-            <PowerOff className="w-3.5 h-3.5" />
-          </button>
-        )}
 
         {/* QR */}
         <button
@@ -852,17 +814,6 @@ function MemberCard({
             >
               {m.sleepLocked ? <><Lock className="w-3.5 h-3.5" /> Locked</> : <><Unlock className="w-3.5 h-3.5" /> Lock</>}
             </button>
-
-            {/* Stop tracking (only shows if currently tracking) */}
-            {m.trackingActive && (
-              <button
-                onClick={() => onPatch(m.id, { trackingActive: false })}
-                title="Stop tracking"
-                className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border border-red-700 text-red-400 hover:bg-red-900/30 transition"
-              >
-                <PowerOff className="w-3.5 h-3.5" /> Stop
-              </button>
-            )}
 
             {/* QR install link */}
             <button

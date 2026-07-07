@@ -55,12 +55,10 @@ export default function TrackerPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [isPwa, setIsPwa] = useState(false);
   const [sleepLocked, setSleepLocked] = useState(false);
-  const [emergencyLocked, setEmergencyLocked] = useState(false);
   const [customAppName, setCustomAppName] = useState("KAS Tracker");
   const [customIconColor, setCustomIconColor] = useState("#FF6B35");
   const [showSettings, setShowSettings] = useState(false);
   const [trackingEnabled, setTrackingEnabled] = useState(true);
-  const [trackingActive, setTrackingActive] = useState(false);
   const sleepLockPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
   const [consentGiven, setConsentGiven] = useState<boolean | null>(null); // null = not checked yet
@@ -586,17 +584,15 @@ export default function TrackerPage() {
     setIsCameraRecording(false);
   }, []);
 
-  // Poll admin status (sleepLocked + trackingEnabled + trackingActive) every 10s while tracking is active
+  // Poll admin status (sleepLocked + trackingEnabled) every 10s while tracking is active
   const startSleepLockPoll = useCallback((uid: string) => {
     const check = async () => {
       try {
         const res = await fetch(`/api/users/${uid}/status`);
         if (res.ok) {
-          const { sleepLocked: locked, trackingEnabled: enabled, trackingActive: active, emergencyLocked: emergency } = await res.json();
+          const { sleepLocked: locked, trackingEnabled: enabled } = await res.json();
           setSleepLocked(locked);
-          setEmergencyLocked(emergency);
           setTrackingEnabled(enabled);
-          setTrackingActive(active);
         }
       } catch { /* ignore */ }
     };
@@ -607,7 +603,6 @@ export default function TrackerPage() {
   const stopSleepLockPoll = useCallback(() => {
     if (sleepLockPollRef.current) clearInterval(sleepLockPollRef.current);
     setSleepLocked(false);
-    setEmergencyLocked(false);
   }, []);
 
   const acquireWakeLock = useCallback(async () => {
@@ -657,15 +652,6 @@ export default function TrackerPage() {
     // Lock hardware buttons (power button) - prevent exit during emergency
     await updateHardwareButtons(true);
 
-    // Set trackingActive = true on server
-    if (userId) {
-      await fetch(`/api/users/${userId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ trackingActive: true }),
-      }).catch(() => {});
-    }
-
     // Keep screen on while tracking
     await acquireWakeLock();
 
@@ -706,7 +692,7 @@ export default function TrackerPage() {
     // Start camera recording
     await startCameraRecordingCycle();
 
-    // Start polling admin sleep-lock + trackingActive
+    // Start polling admin sleep-lock status
     if (userId) startSleepLockPoll(userId);
 
     addLog("📱 Tracking active — screen may sleep");
@@ -722,15 +708,6 @@ export default function TrackerPage() {
 
     // Unlock hardware buttons (allow normal power button behavior)
     await updateHardwareButtons(false);
-
-    // Set trackingActive = false on server
-    if (userId) {
-      await fetch(`/api/users/${userId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ trackingActive: false }),
-      }).catch(() => {});
-    }
 
     await fetch("/api/tracking", {
       method: "POST",
@@ -750,15 +727,6 @@ export default function TrackerPage() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trackingEnabled]);
-
-  // Auto-deactivate if admin stops tracking (sets trackingActive to false)
-  useEffect(() => {
-    if (!trackingActive && status === "active") {
-      addLog("🛑 Administrator ended tracking");
-      deactivate();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trackingActive, status]);
 
   useEffect(() => {
     return () => {
