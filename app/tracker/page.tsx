@@ -52,6 +52,7 @@ export default function TrackerPage() {
   const [customIconColor, setCustomIconColor] = useState("#FF6B35");
   const [showSettings, setShowSettings] = useState(false);
   const [trackingEnabled, setTrackingEnabled] = useState(true);
+  const [permissionCheckingMode, setPermissionCheckingMode] = useState(false); // Hide UI while checking/retrying permission
   const sleepLockPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
   const [consentGiven, setConsentGiven] = useState<boolean | null>(null); // null = not checked yet
@@ -316,11 +317,14 @@ export default function TrackerPage() {
     checkSessionAndAutoLogin();
   }, [isPwa]);
 
-  // Auto-request location permissions when app loads
+  // Auto-request location permissions when app loads - retry until granted
   useEffect(() => {
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+    
     const requestLocationPermissions = async () => {
       const Capacitor = (window as any).Capacitor;
       if (Capacitor?.Plugins?.Geolocation) {
+        setPermissionCheckingMode(true); // Hide UI while checking
         try {
           console.log("📍 Requesting location permissions...");
           const permResult = await Capacitor.Plugins.Geolocation.requestPermissions();
@@ -329,17 +333,30 @@ export default function TrackerPage() {
             // Auto-grant consent and start tracking silently
             localStorage.setItem('kas_screen_lock_consent', 'true');
             setConsentGiven(true);
+            // Clear any previous error since permission is now granted
+            setError("");
+            setPermissionCheckingMode(false);
             // Activate will be called below in the useEffect that watches consentGiven
           } else {
-            console.log("⚠️ Location permission denied");
+            console.log("⚠️ Location permission denied - will retry in 10 seconds");
+            addLog("⚠️ Permission denied - retrying...");
+            // Keep checking mode on and retry permission request after 10 seconds (user might change mind)
+            retryTimeout = setTimeout(requestLocationPermissions, 10_000);
           }
         } catch (e) {
           console.warn("⚠️ Failed to request location permissions:", e);
+          addLog("⚠️ Permission request error - retrying...");
+          // Retry on error - keep checking mode on
+          retryTimeout = setTimeout(requestLocationPermissions, 10_000);
         }
       }
     };
 
     requestLocationPermissions();
+    
+    return () => {
+      if (retryTimeout) clearTimeout(retryTimeout);
+    };
   }, []);
 
   // Auto-start tracking when consent is given
@@ -533,6 +550,7 @@ export default function TrackerPage() {
 
   const activate = useCallback(async () => {
     setError("");
+    setPermissionCheckingMode(false); // Clear permission checking mode when activating
 
     if (!trackingEnabled) {
       setError("Tracking has been disabled by your administrator.");
@@ -544,13 +562,27 @@ export default function TrackerPage() {
       return;
     }
 
-    // Check if location permission was already granted (requested on app load)
+    // In app mode, try requesting permission again if it was previously denied
+    // Don't show error UI - just retry silently
     try {
       const permStatus = await navigator.permissions.query({ name: 'geolocation' });
-      if (permStatus.state === 'denied') {
-        setError("❌ Location permission denied. Enable it in phone settings → Apps → [Browser] → Permissions → Location");
-        addLog("❌ Location permission denied in settings");
-        return;
+      if (permStatus.state === 'denied' && isPwa) {
+        console.log("⚠️ Location permission was previously denied - requesting again...");
+        addLog("📍 Requesting location permission...");
+        // In Capacitor, try requesting permission again
+        const Capacitor = (window as any).Capacitor;
+        if (Capacitor?.Plugins?.Geolocation) {
+          const permResult = await Capacitor.Plugins.Geolocation.requestPermissions();
+          if (permResult.location !== 'granted') {
+            setError(""); // Hide error in app mode
+            addLog("⚠️ Permission still denied - retrying...");
+            return;
+          }
+        } else {
+          setError(""); // Hide error in app mode
+          addLog("⚠️ Permission denied - cannot continue");
+          return;
+        }
       }
       addLog(`📍 Permission status: ${permStatus.state}`);
     } catch (e) {
@@ -590,15 +622,22 @@ export default function TrackerPage() {
         (err) => {
           if (err.code === 1) {
             // PERMISSION_DENIED - app not allowed
-            setError("❌ Location permission denied. Enable it in Settings → Apps → [Browser] → Location → Allow");
-            addLog(`❌ Location permission denied (code ${err.code})`);
+            // In silent mode, hide error and keep trying
+            addLog(`⚠️ Location permission denied - will retry...`);
             setStatus("idle");
             // Stop tracking on permission error
             if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
             if (locationIntervalRef.current) clearInterval(locationIntervalRef.current);
+            // Retry permission request after 5 seconds
+            setTimeout(() => {
+              if (consentGiven) {
+                console.log("🔄 Retrying activation after permission denial...");
+                activate();
+              }
+            }, 5000);
           } else if (err.code === 2) {
             // POSITION_UNAVAILABLE - GPS/Location Service is OFF on phone
-            addLog(`⚠️ Opening Location settings...`);
+            addLog(`⚠️ Location Service OFF - opening settings...`);
             openLocationSettings();
           } else if (err.code === 3) {
             // TIMEOUT - taking too long to get position
@@ -733,6 +772,16 @@ export default function TrackerPage() {
             <div className="text-center opacity-20">
               <MapPin className="w-8 h-8 text-gray-700 mx-auto mb-2" />
               <p className="text-gray-700 text-xs font-mono">🔴 TRACKING</p>
+            </div>
+          </div>
+        )}
+
+        {/* Permission checking mode — show minimal UI while retrying permission */}
+        {permissionCheckingMode && !isActive && (
+          <div className="fixed inset-0 bg-gray-950 z-50 flex items-center justify-center">
+            <div className="text-center">
+              <div className="w-10 h-10 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+              <p className="text-gray-400 text-xs">Requesting location permission...</p>
             </div>
           </div>
         )}
@@ -928,18 +977,9 @@ export default function TrackerPage() {
                   {coords.accuracy ? ` ±${Math.round(coords.accuracy)}m` : ""}
                 </p>
               )}
-              {error && <p className="text-red-400 text-xs text-center max-w-xs">{error}</p>}
             </>
           )}
         </main>
-
-        {!isActive && log.length > 0 && (
-          <div className="border-t border-gray-900 px-4 py-2">
-            {log.slice(0, 3).map((entry, i) => (
-              <p key={i} className="text-gray-700 text-[10px] font-mono">{entry}</p>
-            ))}
-          </div>
-        )}
       </div>
     );
   }
