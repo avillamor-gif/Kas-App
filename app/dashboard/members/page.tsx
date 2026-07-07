@@ -71,10 +71,18 @@ export default function MembersPage() {
     try {
       setApiError("");
       const res = await fetch("/api/users");
+      console.log("📡 /api/users response:", { status: res.status, statusText: res.statusText });
+      
       if (!res.ok) {
-        const errorData = await res.json();
-        setApiError(`API Error: ${res.status} - ${errorData.error || "Unknown error"}`);
-        console.error("❌ Failed to fetch members:", { status: res.status, error: errorData });
+        let errorData;
+        try {
+          errorData = await res.json();
+        } catch {
+          errorData = { error: "Could not parse error response" };
+        }
+        const errMsg = `${res.status} - ${errorData.error || res.statusText}`;
+        setApiError(errMsg);
+        console.error("❌ API Error:", { status: res.status, body: errorData, headers: Object.fromEntries(res.headers) });
       } else {
         const data = await res.json();
         console.log("✅ Fetched members:", data);
@@ -83,7 +91,7 @@ export default function MembersPage() {
     } catch (e) {
       const errMsg = e instanceof Error ? e.message : String(e);
       setApiError(`Network Error: ${errMsg}`);
-      console.error("❌ Network error fetching members:", e);
+      console.error("❌ Fetch error:", { error: e, stack: e instanceof Error ? e.stack : "no stack" });
     } finally {
       setLoading(false);
     }
