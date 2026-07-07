@@ -68,7 +68,7 @@ export default function DashboardPage() {
   const fetchMembers = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/location");
+      const res = await fetch("/api/location", { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
         setMembers(data);
@@ -92,7 +92,7 @@ export default function DashboardPage() {
     const sinceParam = sinceMap[r]
       ? `&since=${new Date(Date.now() - sinceMap[r]).toISOString()}`
       : "";
-    const res = await fetch(`/api/location/history?userId=${userId}&limit=2000${sinceParam}`);
+    const res = await fetch(`/api/location/history?userId=${userId}&limit=2000${sinceParam}`, { credentials: "include" });
     if (res.ok) {
       const data = await res.json();
       setHistoryPoints(data.map((p: { lat: number; lng: number }) => ({ lat: p.lat, lng: p.lng })));
@@ -149,7 +149,7 @@ export default function DashboardPage() {
             </span>
           )}
           <button
-            onClick={() => { fetchMembers(); fetchAudio(); }}
+            onClick={() => { fetchMembers(); }}
             className="text-gray-400 hover:text-white transition"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
@@ -305,7 +305,7 @@ export default function DashboardPage() {
                       onClick={async () => {
                         if (!confirm(`Clear location history for ${selectedMember.name} older than 30 days?`)) return;
                         const before = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-                        await fetch("/api/location", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: selectedMember.id, before }) });
+                        await fetch("/api/location", { method: "DELETE", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: selectedMember.id, before }) });
                         fetchHistory(selectedMember.id, historyRange);
                       }}
                       className="text-[10px] px-2 py-0.5 rounded-full border border-gray-700 text-gray-500 hover:border-red-800 hover:text-red-400 transition"
@@ -315,7 +315,7 @@ export default function DashboardPage() {
                     <button
                       onClick={async () => {
                         if (!confirm(`Delete ALL location history for ${selectedMember.name}? This cannot be undone.`)) return;
-                        await fetch("/api/location", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: selectedMember.id }) });
+                        await fetch("/api/location", { method: "DELETE", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: selectedMember.id }) });
                         setHistoryPoints([]);
                       }}
                       className="text-[10px] px-2 py-0.5 rounded-full border border-gray-700 text-gray-500 hover:border-red-700 hover:text-red-400 transition"

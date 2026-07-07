@@ -68,7 +68,7 @@ export default function MembersPage() {
   const fetchMembers = useCallback(async () => {
     try {
       setApiError("");
-      const res = await fetch("/api/users");
+      const res = await fetch("/api/users", { credentials: "include" });
       console.log("📡 /api/users response:", { status: res.status, statusText: res.statusText });
       
       if (!res.ok) {
@@ -100,6 +100,7 @@ export default function MembersPage() {
   const patch = async (id: string, payload: Record<string, unknown>) => {
     await fetch(`/api/users/${id}`, {
       method: "PATCH",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
@@ -108,7 +109,7 @@ export default function MembersPage() {
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`Remove ${name} from the family group? This cannot be undone.`)) return;
-    await fetch(`/api/users/${id}`, { method: "DELETE" });
+    await fetch(`/api/users/${id}`, { method: "DELETE", credentials: "include" });
     fetchMembers();
   };
 
@@ -118,6 +119,7 @@ export default function MembersPage() {
     setSaving(true);
     const res = await fetch("/api/users", {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
     });
@@ -151,7 +153,7 @@ export default function MembersPage() {
         // Generate APK download link for member
         endpoint = `/api/qr/apk-download/${member.id}`;
       }
-      const res = await fetch(endpoint, { method: qrMode === "login" ? "POST" : "GET" });
+      const res = await fetch(endpoint, { method: qrMode === "login" ? "POST" : "GET", credentials: "include" });
       const json = await res.json();
       if (json.url) {
         setQrUrl(json.url);

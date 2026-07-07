@@ -38,7 +38,7 @@ export default function SettingsPage() {
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const res = await fetch("/api/settings");
+        const res = await fetch("/api/settings", { credentials: "include" });
         if (res.ok) {
           setSettings(await res.json());
         }
@@ -61,6 +61,7 @@ export default function SettingsPage() {
     try {
       const res = await fetch("/api/settings", {
         method: "PATCH",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(settings),
       });
