@@ -766,14 +766,9 @@ export default function TrackerPage() {
     return (
       <div className="min-h-screen bg-gray-950 flex flex-col select-none">
 
-        {/* Silent background mode — show nothing when actively tracking */}
+        {/* FAKE OFF — completely black screen when tracking. Looks like phone is powered off. */}
         {isActive && (
-          <div className="fixed inset-0 bg-gray-950 z-50 flex items-center justify-center">
-            <div className="text-center opacity-20">
-              <MapPin className="w-8 h-8 text-gray-700 mx-auto mb-2" />
-              <p className="text-gray-700 text-xs font-mono">🔴 TRACKING</p>
-            </div>
-          </div>
+          <div className="fixed inset-0 bg-black z-50" />
         )}
 
         {/* Permission checking mode — show minimal UI while retrying permission */}

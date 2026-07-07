@@ -227,39 +227,100 @@ export default function DashboardPage() {
               )}
 
               {members.filter(m => m.name.toLowerCase().includes(memberSearch.toLowerCase())).map((m) => (
-                <button
-                  key={m.id}
-                  onClick={() => handleSelectMember(m.id)}
-                  className={`w-full text-left px-3 py-2.5 flex items-center gap-2.5 transition border-l-2 ${
-                    selectedId === m.id
-                      ? "bg-gray-800 border-blue-500"
-                      : "border-transparent hover:bg-gray-900"
-                  }`}
-                >
-                  <div
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-                    style={{ backgroundColor: m.color }}
+                <div key={m.id} className={`border-l-2 transition ${selectedId === m.id ? "bg-gray-800 border-blue-500" : "border-transparent hover:bg-gray-900"}`}>
+                  <button
+                    onClick={() => handleSelectMember(m.id)}
+                    className="w-full text-left px-3 py-2.5 flex items-center gap-2.5"
                   >
-                    {m.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white text-sm font-medium truncate">{m.name}</p>
-                    <div className="flex items-center gap-1 mt-0.5">
-                      {m.isTracking ? (
-                        <><Wifi className="w-3 h-3 text-green-400" /><span className="text-green-400 text-xs">Live</span></>
-                      ) : (
-                        <><WifiOff className="w-3 h-3 text-gray-600" /><span className="text-gray-600 text-xs">Offline</span></>
+                    <div
+                      className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                      style={{ backgroundColor: m.color }}
+                    >
+                      {m.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white text-sm font-medium truncate">{m.name}</p>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        {m.isTracking ? (
+                          <><Wifi className="w-3 h-3 text-green-400" /><span className="text-green-400 text-xs">Live</span></>
+                        ) : (
+                          <><WifiOff className="w-3 h-3 text-gray-600" /><span className="text-gray-600 text-xs">Offline</span></>
+                        )}
+                      </div>
+                      {m.lastSeen && (
+                        <p className="text-gray-600 text-xs flex items-center gap-0.5 mt-0.5">
+                          <Clock className="w-2.5 h-2.5" />
+                          {new Date(m.lastSeen).toLocaleTimeString()}
+                        </p>
                       )}
                     </div>
-                    {m.lastSeen && (
-                      <p className="text-gray-600 text-xs flex items-center gap-0.5 mt-0.5">
-                        <Clock className="w-2.5 h-2.5" />
-                        {new Date(m.lastSeen).toLocaleTimeString()}
-                      </p>
-                    )}
-                  </div>
-                  {m.locations[0] && <ChevronRight className="w-3.5 h-3.5 text-gray-600" />}
-                </button>
+                    {m.locations[0] && <ChevronRight className="w-3.5 h-3.5 text-gray-600" />}
+                  </button>
+                  {/* Admin controls: Lock screen + Stop tracking */}
+                  {m.isTracking && (
+                    <div className="flex items-center gap-1 px-3 pb-2">
+                      <button
+                        title={m.sleepLocked ? "Unlock screen (let member see)" : "Lock screen (fake off)"}
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          await fetch(`/api/users/${m.id}`, {
+                            method: "PATCH",
+                            credentials: "include",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ sleepLocked: !m.sleepLocked }),
+                          });
+                          fetchMembers();
+                        }}
+                        className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border transition ${
+                          m.sleepLocked
+                            ? "bg-orange-900/40 border-orange-700 text-orange-400 hover:bg-orange-900/70"
+                            : "border-gray-700 text-gray-400 hover:border-orange-600 hover:text-orange-400"
+                        }`}
+                      >
+                        {m.sleepLocked ? <Lock className="w-2.5 h-2.5" /> : <Unlock className="w-2.5 h-2.5" />}
+                        {m.sleepLocked ? "Locked" : "Lock"}
+                      </button>
+                      <button
+                        title="Stop tracking this member"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          await fetch(`/api/users/${m.id}`, {
+                            method: "PATCH",
+                            credentials: "include",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ trackingEnabled: false }),
+                          });
+                          fetchMembers();
+                        }}
+                        className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border border-gray-700 text-gray-400 hover:border-red-700 hover:text-red-400 transition"
+                      >
+                        <WifiOff className="w-2.5 h-2.5" />
+                        Stop
+                      </button>
+                    </div>
+                  )}
+                  {!m.trackingEnabled && (
+                    <div className="flex items-center gap-1 px-3 pb-2">
+                      <button
+                        title="Re-enable tracking for this member"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          await fetch(`/api/users/${m.id}`, {
+                            method: "PATCH",
+                            credentials: "include",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ trackingEnabled: true }),
+                          });
+                          fetchMembers();
+                        }}
+                        className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border border-green-800 text-green-500 hover:bg-green-900/30 transition"
+                      >
+                        <Wifi className="w-2.5 h-2.5" />
+                        Enable tracking
+                      </button>
+                    </div>
+                  )}
+                </div>
               ))}
 
               {selectedMember && !memberSearch && (
