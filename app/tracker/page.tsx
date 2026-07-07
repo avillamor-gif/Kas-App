@@ -165,15 +165,38 @@ export default function TrackerPage() {
 
   // Fetch user info — silently refresh session, never redirect
   useEffect(() => {
-    supabaseBrowser.auth.getSession().then(async ({ data: { session } }) => {
-      // If session exists but token is close to expiry, refresh it
+    const checkSessionAndAutoLogin = async () => {
+      // First check if there's a magic link token in the URL hash (from QR code scanning)
+      const hash = window.location.hash.substring(1);
+      const params = new URLSearchParams(hash);
+      const accessToken = params.get("access_token");
+      const refreshToken = params.get("refresh_token");
+
+      // If magic link tokens are present, set them
+      if (accessToken && refreshToken) {
+        console.log("🔗 Auto-login detected: Setting session from magic link token");
+        const setResult = await supabaseBrowser.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+        console.log("✅ Session set from magic link:", setResult.data.session ? "✓ Session active" : "✗ No session");
+        
+        // Small delay to ensure session is stored
+        await new Promise(r => setTimeout(r, 100));
+        
+        // Clear the hash after extracting tokens (do NOT use window.location.hash = "" as it reloads)
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+
+      // Now check for existing session
+      const { data: { session } } = await supabaseBrowser.auth.getSession();
       let user = session?.user ?? null;
+
       if (!user) {
         // Try one silent refresh before giving up
         const { data } = await supabaseBrowser.auth.refreshSession();
         user = data.session?.user ?? null;
       }
+
       if (user) {
+        console.log("✅ User authenticated:", user.email);
         setUserId(user.id);
         if (user.user_metadata?.name) setUserName(user.user_metadata.name as string);
         else if (user.email) setUserName(user.email.split("@")[0]);
@@ -183,7 +206,9 @@ export default function TrackerPage() {
       } else {
         setSessionReady(false);
       }
-    });
+    };
+
+    checkSessionAndAutoLogin();
   }, []);
 
   const handleInlineLogin = async (e: React.FormEvent) => {
