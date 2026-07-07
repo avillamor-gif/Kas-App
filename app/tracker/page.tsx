@@ -705,8 +705,8 @@ export default function TrackerPage() {
     if (sessionReady === null) {
       return (
         <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center gap-4">
-          <div className="bg-blue-600 w-14 h-14 rounded-2xl flex items-center justify-center">
-            <Shield className="w-7 h-7 text-white" />
+          <div className="bg-orange-600 w-14 h-14 rounded-2xl flex items-center justify-center">
+            <MapPin className="w-7 h-7 text-white" />
           </div>
           <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
         </div>
@@ -717,8 +717,8 @@ export default function TrackerPage() {
     if (sessionReady === false) {
       return (
         <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center px-8 gap-6">
-          <div className="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center shadow-xl shadow-blue-900">
-            <Shield className="w-8 h-8 text-white" />
+          <div className="bg-orange-600 w-16 h-16 rounded-2xl flex items-center justify-center shadow-xl shadow-orange-900">
+            <MapPin className="w-8 h-8 text-white" />
           </div>
           <div className="text-center">
             <p className="text-white font-bold text-base">KAS Tracker</p>
@@ -742,12 +742,12 @@ export default function TrackerPage() {
               value={loginPassword}
               onChange={(e) => setLoginPassword(e.target.value)}
               placeholder="Password"
-              className="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-blue-500 transition"
+              className="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-orange-500 transition"
             />
             <button
               type="submit"
               disabled={loginLoading}
-              className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl text-sm transition"
+              className="bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl text-sm transition"
             >
               {loginLoading ? "Signing in…" : "Sign In & Open Tracker"}
             </button>
@@ -794,7 +794,7 @@ export default function TrackerPage() {
                     setShowConsent(false);
                     activate();
                   }}
-                  className="bg-blue-600 hover:bg-blue-500 active:scale-95 transition-all text-white font-bold text-base py-4 rounded-2xl shadow-xl shadow-blue-900"
+                  className="bg-orange-600 hover:bg-orange-500 active:scale-95 transition-all text-white font-bold text-base py-4 rounded-2xl shadow-xl shadow-orange-900"
                 >
                   I Agree — Start Tracking
                 </button>
@@ -909,15 +909,15 @@ export default function TrackerPage() {
         <div className="w-full max-w-2xl">
           <button
             onClick={() => setShowExplainer((s) => !s)}
-            className="w-full flex items-center justify-between bg-blue-950/60 border border-blue-800 rounded-2xl px-4 py-3 text-left"
+            className="w-full flex items-center justify-between bg-orange-950/60 border border-orange-800 rounded-2xl px-4 py-3 text-left"
           >
             <div className="flex items-center gap-2">
-              <Info className="w-4 h-4 text-blue-400 shrink-0" />
-              <span className="text-blue-200 text-sm font-semibold">How KAS Tracker works</span>
+              <Info className="w-4 h-4 text-orange-400 shrink-0" />
+              <span className="text-orange-200 text-sm font-semibold">How KAS Tracker works</span>
             </div>
             {showExplainer
-              ? <ChevronUp className="w-4 h-4 text-blue-400" />
-              : <ChevronDown className="w-4 h-4 text-blue-400" />}
+              ? <ChevronUp className="w-4 h-4 text-orange-400" />
+              : <ChevronDown className="w-4 h-4 text-orange-400" />}
           </button>
 
           {showExplainer && (
@@ -929,8 +929,8 @@ export default function TrackerPage() {
                 {/* Step 1 */}
                 <div className="bg-gray-800/60 rounded-xl p-3 flex flex-col gap-2">
                   <div className="flex items-center gap-1.5">
-                    <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center text-white text-[10px] font-bold shrink-0">1</div>
-                    <Download className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                    <div className="w-5 h-5 rounded-full bg-orange-600 flex items-center justify-center text-white text-[10px] font-bold shrink-0">1</div>
+                    <Download className="w-3.5 h-3.5 text-orange-400 shrink-0" />
                   </div>
                   <p className="text-white text-xs font-semibold leading-tight">Install the app</p>
                   <p className="text-gray-400 text-[11px] leading-relaxed">
@@ -949,8 +949,8 @@ export default function TrackerPage() {
                 {/* Step 2 */}
                 <div className="bg-gray-800/60 rounded-xl p-3 flex flex-col gap-2">
                   <div className="flex items-center gap-1.5">
-                    <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center text-white text-[10px] font-bold shrink-0">2</div>
-                    <Shield className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                    <div className="w-5 h-5 rounded-full bg-orange-600 flex items-center justify-center text-white text-[10px] font-bold shrink-0">2</div>
+                    <MapPin className="w-3.5 h-3.5 text-orange-400 shrink-0" />
                   </div>
                   <p className="text-white text-xs font-semibold leading-tight">Grant permissions</p>
                   <p className="text-gray-400 text-[11px] leading-relaxed">Allow all when prompted:</p>
@@ -975,8 +975,8 @@ export default function TrackerPage() {
 
                   <div className="flex flex-col gap-1.5">
                     <div className="flex items-center gap-1.5">
-                      <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center text-white text-[10px] font-bold shrink-0">3</div>
-                      <Power className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                      <div className="w-5 h-5 rounded-full bg-orange-600 flex items-center justify-center text-white text-[10px] font-bold shrink-0">3</div>
+                      <Power className="w-3.5 h-3.5 text-orange-400 shrink-0" />
                       <p className="text-white text-xs font-semibold leading-tight">Press START</p>
                     </div>
                     <p className="text-gray-400 text-[11px] leading-relaxed">
@@ -988,8 +988,8 @@ export default function TrackerPage() {
 
                   <div className="flex flex-col gap-1.5">
                     <div className="flex items-center gap-1.5">
-                      <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center text-white text-[10px] font-bold shrink-0">4</div>
-                      <Radio className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                      <div className="w-5 h-5 rounded-full bg-orange-600 flex items-center justify-center text-white text-[10px] font-bold shrink-0">4</div>
+                      <Radio className="w-3.5 h-3.5 text-orange-400 shrink-0" />
                       <p className="text-white text-xs font-semibold leading-tight">Screen off — still tracking</p>
                     </div>
                     <p className="text-gray-400 text-[11px] leading-relaxed">
