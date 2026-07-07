@@ -577,13 +577,21 @@ export default function TrackerPage() {
         sendLocation,
         (err) => {
           if (err.code === 1) {
-            // PERMISSION_DENIED
+            // PERMISSION_DENIED - app not allowed
             setError("❌ Location permission denied. Enable it in Settings → Apps → [Browser] → Location → Allow");
             addLog(`❌ Location permission denied (code ${err.code})`);
             setStatus("idle");
             // Stop tracking on permission error
             if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
             if (locationIntervalRef.current) clearInterval(locationIntervalRef.current);
+          } else if (err.code === 2) {
+            // POSITION_UNAVAILABLE - GPS/Location Service is OFF on phone
+            addLog(`⚠️ Location Service disabled (code ${err.code}) — retrying`);
+            setTimeout(startWatch, 3000);
+          } else if (err.code === 3) {
+            // TIMEOUT - taking too long to get position
+            addLog(`⚠️ GPS timeout (code ${err.code}) — retrying`);
+            setTimeout(startWatch, 3000);
           } else {
             addLog(`⚠️ GPS error (${err.code}) — retrying`);
             setTimeout(startWatch, 3000);
