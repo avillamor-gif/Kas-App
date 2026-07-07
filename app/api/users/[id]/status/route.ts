@@ -17,7 +17,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { data, error } = await supabase
     .from("User")
-    .select("sleepLocked, trackingEnabled")
+    .select("sleepLocked, trackingEnabled, trackingActive, emergencyLocked")
     .eq("id", id)
     .single();
 
@@ -26,5 +26,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   return NextResponse.json({
     sleepLocked: data.sleepLocked ?? false,
     trackingEnabled: data.trackingEnabled ?? true,
+    trackingActive: data.trackingActive ?? false,
+    emergencyLocked: data.emergencyLocked ?? false,
   });
 }

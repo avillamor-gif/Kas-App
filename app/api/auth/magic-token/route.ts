@@ -33,8 +33,9 @@ export async function POST(req: NextRequest) {
       type: "magiclink",
       email: session.email,
       options: {
-        // auth/callback sets the session then redirects to /tracker for GPS tracking
-        redirectTo: `${origin}/auth/callback`,
+        // Point directly to tracker so auto-login works on mobile/Capacitor
+        // Tokens will be in the URL hash for the tracker page to process
+        redirectTo: `${origin}/tracker`,
       },
     });
 

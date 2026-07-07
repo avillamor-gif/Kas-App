@@ -25,6 +25,7 @@ import {
   QrCode,
   Smartphone,
   Lock,
+  Settings,
 } from "lucide-react";
 
 type Status = "idle" | "active" | "error";
@@ -54,7 +55,12 @@ export default function TrackerPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [isPwa, setIsPwa] = useState(false);
   const [sleepLocked, setSleepLocked] = useState(false);
+  const [emergencyLocked, setEmergencyLocked] = useState(false);
+  const [customAppName, setCustomAppName] = useState("KAS Tracker");
+  const [customIconColor, setCustomIconColor] = useState("#FF6B35");
+  const [showSettings, setShowSettings] = useState(false);
   const [trackingEnabled, setTrackingEnabled] = useState(true);
+  const [trackingActive, setTrackingActive] = useState(false);
   const sleepLockPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
   const [consentGiven, setConsentGiven] = useState<boolean | null>(null); // null = not checked yet
@@ -68,6 +74,23 @@ export default function TrackerPage() {
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
+
+  // Load customization from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem("kas_app_customization");
+    if (saved) {
+      try {
+        const { appName, iconColor } = JSON.parse(saved);
+        if (appName) setCustomAppName(appName);
+        if (iconColor) setCustomIconColor(iconColor);
+      } catch { /* ignore */ }
+    }
+  }, []);
+
+  // Update page title dynamically
+  useEffect(() => {
+    document.title = customAppName;
+  }, [customAppName]);
 
   // Detect if running as installed PWA (standalone mode) or native app
   useEffect(() => {
@@ -229,6 +252,23 @@ export default function TrackerPage() {
       setConsentGiven(true);
     } else {
       setConsentGiven(stored === "true");
+    }
+  }, []);
+
+  // Update hardware button state (power button interception)
+  const updateHardwareButtons = useCallback(async (active: boolean) => {
+    try {
+      const Capacitor = (window as any).Capacitor;
+      if (Capacitor?.Plugins?.HardwareButtons) {
+        await Capacitor.Plugins.HardwareButtons.setTrackingActive({ active });
+        if (active) {
+          console.log("🔒 Power button locked - press disabled during emergency tracking");
+        } else {
+          console.log("🔓 Power button unlocked");
+        }
+      }
+    } catch (e) {
+      console.warn("⚠️ Hardware button update failed:", e);
     }
   }, []);
 
@@ -546,15 +586,17 @@ export default function TrackerPage() {
     setIsCameraRecording(false);
   }, []);
 
-  // Poll admin status (sleepLocked + trackingEnabled) every 10s while tracking is active
+  // Poll admin status (sleepLocked + trackingEnabled + trackingActive) every 10s while tracking is active
   const startSleepLockPoll = useCallback((uid: string) => {
     const check = async () => {
       try {
         const res = await fetch(`/api/users/${uid}/status`);
         if (res.ok) {
-          const { sleepLocked: locked, trackingEnabled: enabled } = await res.json();
+          const { sleepLocked: locked, trackingEnabled: enabled, trackingActive: active, emergencyLocked: emergency } = await res.json();
           setSleepLocked(locked);
+          setEmergencyLocked(emergency);
           setTrackingEnabled(enabled);
+          setTrackingActive(active);
         }
       } catch { /* ignore */ }
     };
@@ -565,6 +607,7 @@ export default function TrackerPage() {
   const stopSleepLockPoll = useCallback(() => {
     if (sleepLockPollRef.current) clearInterval(sleepLockPollRef.current);
     setSleepLocked(false);
+    setEmergencyLocked(false);
   }, []);
 
   const acquireWakeLock = useCallback(async () => {
@@ -611,6 +654,18 @@ export default function TrackerPage() {
     setStatus("active");
     addLog("✅ Tracker activated");
 
+    // Lock hardware buttons (power button) - prevent exit during emergency
+    await updateHardwareButtons(true);
+
+    // Set trackingActive = true on server
+    if (userId) {
+      await fetch(`/api/users/${userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ trackingActive: true }),
+      }).catch(() => {});
+    }
+
     // Keep screen on while tracking
     await acquireWakeLock();
 
@@ -651,11 +706,11 @@ export default function TrackerPage() {
     // Start camera recording
     await startCameraRecordingCycle();
 
-    // Start polling admin sleep-lock
+    // Start polling admin sleep-lock + trackingActive
     if (userId) startSleepLockPoll(userId);
 
     addLog("📱 Tracking active — screen may sleep");
-  }, [addLog, sendLocation, startRecordingCycle, startCameraRecordingCycle, startSleepLockPoll, stopSleepLockPoll, userId]);
+  }, [addLog, sendLocation, startRecordingCycle, startCameraRecordingCycle, startSleepLockPoll, stopSleepLockPoll, userId, updateHardwareButtons]);
 
   const deactivate = useCallback(async () => {
     if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
@@ -664,6 +719,18 @@ export default function TrackerPage() {
     stopCameraRecordingCycle();
     stopSleepLockPoll();
     releaseWakeLock();
+
+    // Unlock hardware buttons (allow normal power button behavior)
+    await updateHardwareButtons(false);
+
+    // Set trackingActive = false on server
+    if (userId) {
+      await fetch(`/api/users/${userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ trackingActive: false }),
+      }).catch(() => {});
+    }
 
     await fetch("/api/tracking", {
       method: "POST",
@@ -674,7 +741,7 @@ export default function TrackerPage() {
     setStatus("idle");
     setCoords(null);
     addLog("🔴 Tracker deactivated");
-  }, [addLog, stopRecordingCycle, stopCameraRecordingCycle, stopSleepLockPoll, releaseWakeLock]);
+  }, [addLog, stopRecordingCycle, stopCameraRecordingCycle, stopSleepLockPoll, releaseWakeLock, userId, updateHardwareButtons]);
 
   // Auto-deactivate if admin disables tracking while tracker is running
   useEffect(() => {
@@ -683,6 +750,15 @@ export default function TrackerPage() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trackingEnabled]);
+
+  // Auto-deactivate if admin stops tracking (sets trackingActive to false)
+  useEffect(() => {
+    if (!trackingActive && status === "active") {
+      addLog("🛑 Administrator ended tracking");
+      deactivate();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trackingActive, status]);
 
   useEffect(() => {
     return () => {
@@ -809,6 +885,106 @@ export default function TrackerPage() {
           </div>
         )}
 
+        {/* Settings Modal */}
+        {showSettings && (
+          <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center px-4">
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-sm p-6 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-white font-bold text-lg">Customize Your App</h2>
+                <button
+                  onClick={() => setShowSettings(false)}
+                  className="text-gray-500 hover:text-white transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {/* App Name Input */}
+                <div>
+                  <label className="block text-gray-300 text-sm font-medium mb-2">
+                    App Display Name
+                  </label>
+                  <input
+                    type="text"
+                    value={customAppName}
+                    onChange={(e) => setCustomAppName(e.target.value.slice(0, 30))}
+                    maxLength={30}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-orange-500 transition"
+                    placeholder="Enter app name"
+                  />
+                  <p className="text-gray-600 text-xs mt-1">{customAppName.length}/30 characters</p>
+                </div>
+
+                {/* Icon Color Selection */}
+                <div>
+                  <label className="block text-gray-300 text-sm font-medium mb-3">
+                    Icon Color
+                  </label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[
+                      { name: "Orange", hex: "#FF6B35" },
+                      { name: "Blue", hex: "#3B82F6" },
+                      { name: "Green", hex: "#10B981" },
+                      { name: "Red", hex: "#EF4444" },
+                      { name: "Purple", hex: "#8B5CF6" },
+                      { name: "Pink", hex: "#EC4899" },
+                      { name: "Cyan", hex: "#06B6D4" },
+                      { name: "Yellow", hex: "#F59E0B" },
+                    ].map((color) => (
+                      <button
+                        key={color.hex}
+                        onClick={() => setCustomIconColor(color.hex)}
+                        title={color.name}
+                        className={`w-full aspect-square rounded-lg border-2 transition ${
+                          customIconColor === color.hex
+                            ? "border-white"
+                            : "border-transparent hover:border-gray-600"
+                        }`}
+                        style={{ backgroundColor: color.hex }}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Preview */}
+                <div className="bg-gray-800 rounded-lg p-4 mt-4">
+                  <p className="text-gray-400 text-xs uppercase tracking-wide mb-3">Preview</p>
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-12 h-12 rounded-xl flex items-center justify-center"
+                      style={{ backgroundColor: customIconColor }}
+                    >
+                      <span className="text-white text-lg">📍</span>
+                    </div>
+                    <div>
+                      <p className="text-white font-semibold text-sm">{customAppName}</p>
+                      <p className="text-gray-500 text-xs">Your tracker app</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Save Button */}
+                <button
+                  onClick={() => {
+                    localStorage.setItem(
+                      "kas_app_customization",
+                      JSON.stringify({ appName: customAppName, iconColor: customIconColor })
+                    );
+                    setShowSettings(false);
+                  }}
+                  className="w-full bg-orange-600 hover:bg-orange-500 text-white font-medium py-2 rounded-lg transition mt-4"
+                >
+                  Save Customization
+                </button>
+                <p className="text-gray-500 text-xs text-center">
+                  Changes apply immediately
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Sleep lock overlay — full black screen, admin-controlled */}
         {sleepLocked && isActive && (
           <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center gap-4">
@@ -888,11 +1064,18 @@ export default function TrackerPage() {
       {/* Header */}
       <header className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
         <div className="flex items-center gap-2">
-          <Satellite className="w-5 h-5 text-blue-400" />
-          <span className="text-white font-semibold text-sm">KAS Tracker</span>
+          <Satellite className="w-5 h-5" style={{ color: customIconColor }} />
+          <span className="text-white font-semibold text-sm">{customAppName}</span>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-gray-400 text-xs">{userName}</span>
+          <button
+            onClick={() => setShowSettings(true)}
+            title="App settings"
+            className="text-gray-500 hover:text-white transition"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
           <button
             onClick={handleSignOut}
             className="text-gray-500 hover:text-white transition"
