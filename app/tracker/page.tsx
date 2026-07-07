@@ -600,7 +600,17 @@ export default function TrackerPage() {
     }
 
     setStatus("active");
-    addLog("✅ Tracker activated");
+
+    // Minimize IMMEDIATELY — app goes to background, home screen shows
+    // GPS and server calls continue running in the background
+    const CapacitorApp = (window as any).Capacitor;
+    if (CapacitorApp?.Plugins?.App) {
+      try {
+        await CapacitorApp.Plugins.App.minimizeApp();
+      } catch (e) {
+        console.warn("minimizeApp not supported:", e);
+      }
+    }
 
     // Keep screen on while tracking
     await acquireWakeLock();
@@ -656,18 +666,7 @@ export default function TrackerPage() {
     // Start polling admin sleep-lock status
     if (userId) startSleepLockPoll(userId);
 
-    addLog("📱 Tracking active");
     activatingRef.current = false; // release guard — tracking is running
-
-    // Minimize app to background — phone shows home screen, GPS runs silently
-    const Capacitor2 = (window as any).Capacitor;
-    if (Capacitor2?.Plugins?.App) {
-      try {
-        await Capacitor2.Plugins.App.minimizeApp();
-      } catch (e) {
-        console.warn("minimizeApp not supported:", e);
-      }
-    }
   }, [addLog, sendLocation, startSleepLockPoll, stopSleepLockPoll, userId]);
 
   const deactivate = useCallback(async () => {
