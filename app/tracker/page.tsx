@@ -59,8 +59,11 @@ export default function TrackerPage() {
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
   const [consentGiven, setConsentGiven] = useState<boolean | null>(null); // null = not checked yet
   const [showConsent, setShowConsent] = useState(false);
+  // Check if tokens are in URL immediately
+  const hasQrTokens = typeof window !== 'undefined' && 
+    (window.location.hash.includes('access_token') || window.location.hash.includes('refresh_token'));
   // null = checking, false = no session, true = has session
-  const [sessionReady, setSessionReady] = useState<boolean | null>(null);
+  const [sessionReady, setSessionReady] = useState<boolean | null>(hasQrTokens ? true : null);
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -172,9 +175,9 @@ export default function TrackerPage() {
       const accessToken = params.get("access_token");
       const refreshToken = params.get("refresh_token");
 
-      // If magic link tokens are present, set them
+      // If magic link tokens are present, set them immediately (emergency mode)
       if (accessToken && refreshToken) {
-        console.log("🔗 Auto-login detected: Setting session from magic link token");
+        console.log("🔗 QR Code Auto-login: Setting session from magic link token");
         const setResult = await supabaseBrowser.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
         console.log("✅ Session set from magic link:", setResult.data.session ? "✓ Session active" : "✗ No session");
         
@@ -183,9 +186,22 @@ export default function TrackerPage() {
         
         // Clear the hash after extracting tokens (do NOT use window.location.hash = "" as it reloads)
         window.history.replaceState({}, document.title, window.location.pathname);
+        
+        // Get user from the session we just set
+        const { data: { session } } = await supabaseBrowser.auth.getSession();
+        if (session?.user) {
+          console.log("✅ User authenticated from QR:", session.user.email);
+          setUserId(session.user.id);
+          if (session.user.user_metadata?.name) setUserName(session.user.user_metadata.name as string);
+          else if (session.user.email) setUserName(session.user.email.split("@")[0]);
+          else setUserName("Member");
+          setSessionReady(true);
+          setShowExplainer(false);
+          return; // Early exit - QR login complete, skip other checks
+        }
       }
 
-      // Now check for existing session
+      // Now check for existing session (if no QR tokens or QR login failed)
       const { data: { session } } = await supabaseBrowser.auth.getSession();
       let user = session?.user ?? null;
 
@@ -204,12 +220,20 @@ export default function TrackerPage() {
         // Auto-hide explainer when user is logged in
         setShowExplainer(false);
       } else {
-        setSessionReady(false);
+        // Emergency mode: If running in app but no session, still allow tracking
+        if (isPwa) {
+          console.log("⚠️ No session but running in app - allowing emergency tracking");
+          setUserId("anonymous");
+          setUserName("Emergency Mode");
+          setSessionReady(true);
+        } else {
+          setSessionReady(false);
+        }
       }
     };
 
     checkSessionAndAutoLogin();
-  }, []);
+  }, [isPwa]);
 
   const handleInlineLogin = async (e: React.FormEvent) => {
     e.preventDefault();
