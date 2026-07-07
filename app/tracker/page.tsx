@@ -6,21 +6,16 @@ import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import {
   MapPin,
-  Mic,
-  MicOff,
   Power,
   PowerOff,
   Satellite,
   LogOut,
   Download,
   X,
-  Camera,
-  CameraOff,
   Info,
   ChevronDown,
   ChevronUp,
   Shield,
-  Video,
   Radio,
   QrCode,
   Smartphone,
@@ -40,7 +35,6 @@ export default function TrackerPage() {
   const [userName, setUserName] = useState("");
   const [status, setStatus] = useState<Status>("idle");
   const [coords, setCoords] = useState<{ lat: number; lng: number; accuracy?: number } | null>(null);
-  const [isRecording, setIsRecording] = useState(false);
   const [log, setLog] = useState<string[]>([]);
   const [error, setError] = useState("");
 
@@ -51,7 +45,6 @@ export default function TrackerPage() {
   const [showApkQr, setShowApkQr] = useState(false);
   const [apkQrUrl, setApkQrUrl] = useState<string | null>(null);
   const [apkQrLoading, setApkQrLoading] = useState(false);
-  const [isCameraRecording, setIsCameraRecording] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [isPwa, setIsPwa] = useState(false);
   const [sleepLocked, setSleepLocked] = useState(false);
@@ -197,25 +190,7 @@ export default function TrackerPage() {
           console.warn("⚠️ GPS permission request failed:", e);
         }
 
-        // Request camera permission (needed for video)
-        try {
-          const camPerms = await Capacitor.Plugins.Camera.checkPermissions();
-          if (camPerms.camera !== 'granted') {
-            await Capacitor.Plugins.Camera.requestPermissions();
-            console.log("✅ Camera permission granted");
-          }
-        } catch (e) {
-          console.warn("⚠️ Camera permission request failed:", e);
-        }
 
-        // Request microphone through a dummy media stream
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          stream.getTracks().forEach(t => t.stop());
-          console.log("✅ Microphone permission granted");
-        } catch (e) {
-          console.warn("⚠️ Microphone permission request failed:", e);
-        }
 
         // Request wake lock permission
         try {
@@ -270,9 +245,7 @@ export default function TrackerPage() {
     }
   }, []);
 
-  const cameraStreamRef = useRef<MediaStream | null>(null);
-  const cameraRecorderRef = useRef<MediaRecorder | null>(null);
-  const cameraIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
 
   // Fetch user info — silently refresh session, never redirect
   useEffect(() => {
@@ -350,6 +323,7 @@ export default function TrackerPage() {
     const res = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({ email: loginEmail, password: loginPassword }),
     });
     setLoginLoading(false);
@@ -371,7 +345,7 @@ export default function TrackerPage() {
   };
 
   const handleSignOut = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
+    await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
     router.push("/login");
     router.refresh();
   };
@@ -427,9 +401,7 @@ export default function TrackerPage() {
 
   const watchIdRef = useRef<number | null>(null);
   const locationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-  const recordingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
 
   const addLog = useCallback((msg: string) => {
     const time = new Date().toLocaleTimeString();
@@ -445,6 +417,7 @@ export default function TrackerPage() {
         await fetch("/api/location", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          credentials: "include",
           body: JSON.stringify({ lat, lng, accuracy, speed, heading, altitude }),
         });
         addLog(`📍 Location sent: ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
@@ -455,140 +428,18 @@ export default function TrackerPage() {
     [addLog]
   );
 
-  const startRecordingCycle = useCallback(async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      setIsRecording(true);
-      addLog("🎙️ Microphone access granted");
 
-      // Detect best supported audio MIME type (iOS Safari needs audio/mp4)
-      const audioMime =
-        MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus" :
-        MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" :
-        MediaRecorder.isTypeSupported("audio/mp4") ? "audio/mp4" :
-        "";
 
-      const recordChunk = () => {
-        const recorderOpts = audioMime ? { mimeType: audioMime } : {};
-        const recorder = new MediaRecorder(stream, recorderOpts);
-        audioChunksRef.current = [];
 
-        recorder.ondataavailable = (e) => {
-          if (e.data.size > 0) audioChunksRef.current.push(e.data);
-        };
-
-        recorder.onstop = async () => {
-          const blob = new Blob(audioChunksRef.current, { type: audioMime || "audio/webm" });
-          if (blob.size < 500) return; // skip near-empty clips
-
-          const formData = new FormData();
-          const ext = audioMime.includes("mp4") ? "mp4" : "webm";
-          formData.append("audio", blob, `clip.${ext}`);
-
-          try {
-            await fetch("/api/audio", { method: "POST", body: formData });
-            addLog("🔊 Audio clip uploaded");
-          } catch {
-            addLog("⚠️ Failed to upload audio");
-          }
-        };
-
-        recorder.start();
-        mediaRecorderRef.current = recorder;
-
-        // Stop after 30 seconds to upload
-        setTimeout(() => {
-          if (recorder.state !== "inactive") recorder.stop();
-        }, 30_000);
-      };
-
-      recordChunk();
-      // Repeat every 35 seconds (5s buffer between clips)
-      recordingIntervalRef.current = setInterval(recordChunk, 35_000);
-    } catch (err) {
-      addLog(`⚠️ Microphone error: ${err instanceof Error ? err.message : "permission denied"}`);
-    }
-  }, [addLog]);
-
-  const stopRecordingCycle = useCallback(() => {
-    if (recordingIntervalRef.current) clearInterval(recordingIntervalRef.current);
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-      mediaRecorderRef.current.stop();
-    }
-    setIsRecording(false);
-  }, []);
-
-  const startCameraRecordingCycle = useCallback(async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } },
-        audio: false,
-      });
-      cameraStreamRef.current = stream;
-      setIsCameraRecording(true);
-      addLog("📷 Camera access granted");
-
-      // Detect best supported video MIME type (iOS Safari needs video/mp4)
-      const videoMime =
-        MediaRecorder.isTypeSupported("video/webm;codecs=vp9") ? "video/webm;codecs=vp9" :
-        MediaRecorder.isTypeSupported("video/webm") ? "video/webm" :
-        MediaRecorder.isTypeSupported("video/mp4") ? "video/mp4" :
-        "";
-
-      const recordChunk = () => {
-        const recorderOpts = videoMime ? { mimeType: videoMime } : {};
-        const recorder = new MediaRecorder(stream, recorderOpts);
-        const chunks: Blob[] = [];
-
-        recorder.ondataavailable = (e) => {
-          if (e.data.size > 0) chunks.push(e.data);
-        };
-
-        recorder.onstop = async () => {
-          const blob = new Blob(chunks, { type: videoMime || "video/webm" });
-          if (blob.size < 1000) return;
-          const formData = new FormData();
-          const ext = videoMime.includes("mp4") ? "mp4" : "webm";
-          formData.append("video", blob, `clip.${ext}`);
-          try {
-            await fetch("/api/video", { method: "POST", body: formData });
-            addLog("🎥 Video clip uploaded");
-          } catch {
-            addLog("⚠️ Failed to upload video");
-          }
-        };
-
-        recorder.start();
-        cameraRecorderRef.current = recorder;
-        setTimeout(() => {
-          if (recorder.state !== "inactive") recorder.stop();
-        }, 30_000);
-      };
-
-      recordChunk();
-      cameraIntervalRef.current = setInterval(recordChunk, 35_000);
-    } catch (err) {
-      addLog(`ℹ️ Camera error: ${err instanceof Error ? err.message : "not available"}`);
-    }
-  }, [addLog]);
-
-  const stopCameraRecordingCycle = useCallback(() => {
-    if (cameraIntervalRef.current) clearInterval(cameraIntervalRef.current);
-    if (cameraRecorderRef.current && cameraRecorderRef.current.state !== "inactive") {
-      cameraRecorderRef.current.stop();
-    }
-    if (cameraStreamRef.current) {
-      cameraStreamRef.current.getTracks().forEach((t) => t.stop());
-      cameraStreamRef.current = null;
-    }
-    setIsCameraRecording(false);
-  }, []);
 
   // Poll admin status (sleepLocked + trackingEnabled) every 10s while tracking is active
   const startSleepLockPoll = useCallback((uid: string) => {
     const check = async () => {
       try {
-        const res = await fetch(`/api/users/${uid}/status`);
+        const res = await fetch(`/api/users/${uid}/status`, {
+          method: "GET",
+          credentials: "include",
+        });
         if (res.ok) {
           const { sleepLocked: locked, trackingEnabled: enabled } = await res.json();
           setSleepLocked(locked);
@@ -659,6 +510,7 @@ export default function TrackerPage() {
     await fetch("/api/tracking", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({ isTracking: true }),
     });
 
@@ -686,23 +538,15 @@ export default function TrackerPage() {
       });
     }, 5_000);
 
-    // Start audio recording
-    await startRecordingCycle();
-
-    // Start camera recording
-    await startCameraRecordingCycle();
-
     // Start polling admin sleep-lock status
     if (userId) startSleepLockPoll(userId);
 
     addLog("📱 Tracking active — screen may sleep");
-  }, [addLog, sendLocation, startRecordingCycle, startCameraRecordingCycle, startSleepLockPoll, stopSleepLockPoll, userId, updateHardwareButtons]);
+  }, [addLog, sendLocation, startSleepLockPoll, stopSleepLockPoll, userId, updateHardwareButtons]);
 
   const deactivate = useCallback(async () => {
     if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
     if (locationIntervalRef.current) clearInterval(locationIntervalRef.current);
-    stopRecordingCycle();
-    stopCameraRecordingCycle();
     stopSleepLockPoll();
     releaseWakeLock();
 
@@ -712,13 +556,14 @@ export default function TrackerPage() {
     await fetch("/api/tracking", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({ isTracking: false }),
     });
 
     setStatus("idle");
     setCoords(null);
     addLog("🔴 Tracker deactivated");
-  }, [addLog, stopRecordingCycle, stopCameraRecordingCycle, stopSleepLockPoll, releaseWakeLock, userId, updateHardwareButtons]);
+  }, [addLog, stopSleepLockPoll, releaseWakeLock, userId, updateHardwareButtons]);
 
   // Auto-deactivate if admin disables tracking while tracker is running
   useEffect(() => {
@@ -732,10 +577,7 @@ export default function TrackerPage() {
     return () => {
       if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
       if (locationIntervalRef.current) clearInterval(locationIntervalRef.current);
-      if (recordingIntervalRef.current) clearInterval(recordingIntervalRef.current);
-      if (cameraIntervalRef.current) clearInterval(cameraIntervalRef.current);
       if (sleepLockPollRef.current) clearInterval(sleepLockPollRef.current);
-      if (cameraStreamRef.current) cameraStreamRef.current.getTracks().forEach((t) => t.stop());
     };
   }, []);
 
@@ -817,10 +659,6 @@ export default function TrackerPage() {
                 <div className="bg-gray-800 rounded-2xl px-4 py-3 flex items-start gap-3">
                   <MapPin className="w-4 h-4 text-green-400 mt-0.5 shrink-0" />
                   <p className="text-gray-300 text-sm">Your <strong className="text-white">GPS location</strong> will be sent to your administrator in real time.</p>
-                </div>
-                <div className="bg-gray-800 rounded-2xl px-4 py-3 flex items-start gap-3">
-                  <Mic className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
-                  <p className="text-gray-300 text-sm">Your <strong className="text-white">microphone</strong> may be used to record audio clips.</p>
                 </div>
                 <div className="bg-gray-800 rounded-2xl px-4 py-3 flex items-start gap-3">
                   <Lock className="w-4 h-4 text-orange-400 mt-0.5 shrink-0" />
@@ -995,16 +833,6 @@ export default function TrackerPage() {
               <MapPin className="w-5 h-5 text-gray-500" />
               <span className="text-gray-600 text-xs">GPS</span>
             </div>
-            <div className="flex flex-col items-center gap-1.5">
-              <div className={`w-3 h-3 rounded-full ${isRecording ? "bg-red-400 animate-pulse" : "bg-gray-700"}`} />
-              {isRecording ? <Mic className="w-5 h-5 text-red-400" /> : <MicOff className="w-5 h-5 text-gray-500" />}
-              <span className="text-gray-600 text-xs">Audio</span>
-            </div>
-            <div className="flex flex-col items-center gap-1.5">
-              <div className={`w-3 h-3 rounded-full ${isCameraRecording ? "bg-purple-400 animate-pulse" : "bg-gray-700"}`} />
-              {isCameraRecording ? <Camera className="w-5 h-5 text-purple-400" /> : <CameraOff className="w-5 h-5 text-gray-500" />}
-              <span className="text-gray-600 text-xs">Camera</span>
-            </div>
           </div>
 
           {coords && (
@@ -1110,14 +938,7 @@ export default function TrackerPage() {
                       <MapPin className="w-3 h-3 text-green-400 mt-0.5 shrink-0" />
                       <span className="text-gray-300 text-[11px]"><strong>Location</strong> — GPS sent every 10s to the live map.</span>
                     </li>
-                    <li className="flex items-start gap-1.5">
-                      <Mic className="w-3 h-3 text-red-400 mt-0.5 shrink-0" />
-                      <span className="text-gray-300 text-[11px]"><strong>Microphone</strong> — 30s audio clips uploaded continuously.</span>
-                    </li>
-                    <li className="flex items-start gap-1.5">
-                      <Camera className="w-3 h-3 text-purple-400 mt-0.5 shrink-0" />
-                      <span className="text-gray-300 text-[11px]"><strong>Camera</strong> — 30s video clips from rear camera.</span>
-                    </li>
+
                   </ul>
                 </div>
 
@@ -1144,7 +965,7 @@ export default function TrackerPage() {
                       <p className="text-white text-xs font-semibold leading-tight">Screen off — still tracking</p>
                     </div>
                     <p className="text-gray-400 text-[11px] leading-relaxed">
-                      GPS, audio &amp; video upload every 30s even with screen off.
+                      GPS uploads every 10s even with screen off.
                     </p>
                     <div className="bg-gray-900 rounded-lg px-2 py-1.5">
                       <p className="text-orange-400 text-[10px] font-semibold mb-0.5">⚠️ Don't force-close</p>
@@ -1158,9 +979,7 @@ export default function TrackerPage() {
                     <p className="text-white text-xs font-semibold">👁 Admin sees</p>
                     <ul className="flex flex-col gap-1">
                       <li className="text-gray-400 text-[10px] flex items-start gap-1"><MapPin className="w-2.5 h-2.5 text-green-400 mt-0.5 shrink-0" />Live map pin, updated every 10s</li>
-                      <li className="text-gray-400 text-[10px] flex items-start gap-1"><Video className="w-2.5 h-2.5 text-blue-400 mt-0.5 shrink-0" />Location trail history</li>
-                      <li className="text-gray-400 text-[10px] flex items-start gap-1"><Mic className="w-2.5 h-2.5 text-red-400 mt-0.5 shrink-0" />Audio recordings</li>
-                      <li className="text-gray-400 text-[10px] flex items-start gap-1"><Camera className="w-2.5 h-2.5 text-purple-400 mt-0.5 shrink-0" />Video clips</li>
+                      <li className="text-gray-400 text-[10px] flex items-start gap-1"><Radio className="w-2.5 h-2.5 text-blue-400 mt-0.5 shrink-0" />Location trail history</li>
                     </ul>
                   </div>
 

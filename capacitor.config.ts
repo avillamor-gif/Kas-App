@@ -15,9 +15,6 @@ const config: CapacitorConfig = {
     },
     Geolocation: {
       permissions: ['location']
-    },
-    Camera: {
-      permissions: ['camera', 'microphone']
     }
   },
   // Hide browser UI in Android WebView

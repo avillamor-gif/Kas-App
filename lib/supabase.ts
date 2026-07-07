@@ -52,19 +52,3 @@ export type DbLocation = {
   altitude: number | null;
   createdAt: string;
 };
-
-export type DbAudioClip = {
-  id: string;
-  userId: string;
-  url: string;
-  duration: number | null;
-  createdAt: string;
-};
-
-export type DbVideoClip = {
-  id: string;
-  userId: string;
-  url: string;
-  duration: number | null;
-  createdAt: string;
-};

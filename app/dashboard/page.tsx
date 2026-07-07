@@ -6,8 +6,6 @@ import { createClient } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
 import {
   MapPin,
-  Mic,
-  Video,
   LogOut,
   RefreshCw,
   Clock,
@@ -31,18 +29,15 @@ const supabaseBrowser = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-type AudioClip = {
+type MemberLocation = {
   id: string;
-  url: string;
-  createdAt: string;
-  user: { name: string; color: string };
-};
-
-type VideoClip = {
-  id: string;
-  url: string;
-  createdAt: string;
-  user: { name: string; color: string };
+  name: string;
+  color: string;
+  isTracking: boolean;
+  trackingEnabled: boolean;
+  sleepLocked: boolean;
+  lastSeen: string | null;
+  locations: Array<{ lat: number; lng: number; accuracy?: number }> | null;
 };
 
 
@@ -55,9 +50,6 @@ export default function DashboardPage() {
   const [historyRange, setHistoryRange] = useState<"1h" | "6h" | "24h" | "7d" | "all">("24h");
   const [loading, setLoading] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
-  const [audioClips, setAudioClips] = useState<AudioClip[]>([]);
-  const [videoClips, setVideoClips] = useState<VideoClip[]>([]);
-  const [tab, setTab] = useState<"map" | "audio" | "camera">("map");
   const [memberSearch, setMemberSearch] = useState("");
 
   useEffect(() => {
@@ -87,26 +79,7 @@ export default function DashboardPage() {
     }
   }, []);
 
-  const fetchAudio = useCallback(async () => {
-    const res = await fetch("/api/audio");
-    if (res.ok) setAudioClips(await res.json());
-    const vres = await fetch("/api/video");
-    if (vres.ok) setVideoClips(await vres.json());
-  }, []);
 
-  const deleteAudioClip = useCallback(async (id: string) => {
-    if (!confirm("Delete this audio recording? This cannot be undone.")) return;
-    await fetch("/api/audio", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
-    const res = await fetch("/api/audio");
-    if (res.ok) setAudioClips(await res.json());
-  }, []);
-
-  const deleteVideoClip = useCallback(async (id: string) => {
-    if (!confirm("Delete this video recording? This cannot be undone.")) return;
-    await fetch("/api/video", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
-    const vres = await fetch("/api/video");
-    if (vres.ok) setVideoClips(await vres.json());
-  }, []);
 
   const fetchHistory = useCallback(async (userId: string, range?: string) => {
     const sinceMap: Record<string, number> = {
@@ -139,16 +112,14 @@ export default function DashboardPage() {
     return () => { channel.unsubscribe(); };
   }, []);
 
-  // Poll every 10 seconds as fallback + for audio/video
+  // Poll every 10 seconds as fallback
   useEffect(() => {
     fetchMembers();
-    fetchAudio();
     const interval = setInterval(() => {
       fetchMembers();
-      fetchAudio();
     }, 10_000);
     return () => clearInterval(interval);
-  }, [fetchMembers, fetchAudio]);
+  }, [fetchMembers]);
 
   const handleSelectMember = (id: string) => {
     if (selectedId === id) {
@@ -157,7 +128,6 @@ export default function DashboardPage() {
     } else {
       setSelectedId(id);
       fetchHistory(id, historyRange);
-      setTab("map");
     }
   };
 
@@ -208,37 +178,6 @@ export default function DashboardPage() {
 
           {/* Tab bar — right side */}
           <div className="flex flex-1 items-stretch">
-            <div className="flex">
-              {(["map", "audio", "camera"] as const).map((t) => {
-                const Icon = t === "map" ? MapPin : t === "audio" ? Mic : Video;
-                const label = t === "map" ? "Map" : t === "audio" ? "Audio" : "Camera";
-                return (
-                  <button
-                    key={t}
-                    onClick={() => setTab(t)}
-                    className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium border-b-2 transition ${
-                      tab === t
-                        ? "border-blue-500 text-blue-400"
-                        : "border-transparent text-gray-500 hover:text-gray-300"
-                    }`}
-                  >
-                    <Icon className="w-4 h-4" />
-                    {label}
-                    {t === "audio" && audioClips.length > 0 && (
-                      <span className="bg-gray-700 text-gray-300 text-[10px] rounded-full px-1.5">
-                        {audioClips.length}
-                      </span>
-                    )}
-                    {t === "camera" && videoClips.length > 0 && (
-                      <span className="bg-gray-700 text-gray-300 text-[10px] rounded-full px-1.5">
-                        {videoClips.length}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-
             {/* Manage Members — right-aligned */}
             <div className="ml-auto flex items-center pr-4">
               <button
@@ -390,103 +329,15 @@ export default function DashboardPage() {
 
           </aside>
 
-          {/* ── Right: tab content ── */}
+          {/* ── Right: map content ── */}
           <div className="flex-1 flex flex-col overflow-hidden">
-
-            {/* Map tab */}
-            {tab === "map" && (
-              <div className="flex-1 p-3 min-h-0">
-                <MapWrapper
-                  members={members}
-                  selectedId={selectedId}
-                  historyPoints={historyPoints}
-                />
-              </div>
-            )}
-
-            {/* Audio tab */}
-            {tab === "audio" && (
-              <div className="flex-1 overflow-y-auto p-4">
-                {audioClips.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full text-center">
-                    <Mic className="w-10 h-10 text-gray-700 mb-3" />
-                    <p className="text-gray-500 text-sm">No audio clips yet</p>
-                    <p className="text-gray-600 text-xs mt-1">Clips appear when a member activates tracking.</p>
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-3">
-                    {audioClips.map((clip) => (
-                      <div
-                        key={clip.id}
-                        className="bg-gray-900 border border-gray-800 rounded-xl p-3 flex items-center gap-3"
-                      >
-                        <div
-                          className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-                          style={{ backgroundColor: clip.user.color }}
-                        >
-                          {clip.user.name.charAt(0)}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-white text-sm font-medium">{clip.user.name}</p>
-                          <p className="text-gray-500 text-xs">{new Date(clip.createdAt).toLocaleTimeString()}</p>
-                        </div>
-                        <audio controls src={clip.url} className="h-8" />
-                        <button
-                          onClick={() => deleteAudioClip(clip.id)}
-                          title="Delete recording"
-                          className="text-gray-600 hover:text-red-400 transition shrink-0 p-1"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Camera tab */}
-            {tab === "camera" && (
-              <div className="flex-1 overflow-y-auto p-4">
-                {videoClips.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full text-center">
-                    <Video className="w-10 h-10 text-gray-700 mb-3" />
-                    <p className="text-gray-500 text-sm">No camera recordings yet</p>
-                    <p className="text-gray-600 text-xs mt-1">Clips appear when a member records video while tracking.</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-3">
-                    {videoClips.map((clip) => (
-                      <div
-                        key={clip.id}
-                        className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden"
-                      >
-                        <video controls src={clip.url} className="w-full aspect-video object-cover" />
-                        <div className="p-2 flex items-center gap-2">
-                          <div
-                            className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0"
-                            style={{ backgroundColor: clip.user.color }}
-                          >
-                            {clip.user.name.charAt(0)}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-white text-xs font-medium truncate">{clip.user.name}</p>
-                            <p className="text-gray-500 text-[10px]">{new Date(clip.createdAt).toLocaleTimeString()}</p>
-                          </div>
-                          <button
-                            onClick={() => deleteVideoClip(clip.id)}
-                            title="Delete recording"
-                            className="ml-auto text-gray-600 hover:text-red-400 transition shrink-0 p-1"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+            <div className="flex-1 p-3 min-h-0">
+              <MapWrapper
+                members={members}
+                selectedId={selectedId}
+                historyPoints={historyPoints}
+              />
+            </div>
           </div>
         </div>
       </div>
