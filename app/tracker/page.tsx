@@ -156,10 +156,80 @@ export default function TrackerPage() {
     };
   }, []);
 
+  // Auto-request all permissions on app open (members already agreed)
+  useEffect(() => {
+    const requestAllPermissions = async () => {
+      if (!isPwa) return; // Only request if running as app
+      
+      try {
+        const Capacitor = (window as any).Capacitor;
+        if (!Capacitor) return;
+
+        console.log("📍 Requesting all permissions (GPS, microphone, camera)...");
+
+        // Request GPS permission
+        try {
+          await Capacitor.Plugins.Geolocation.checkPermissions();
+          const geoPerms = await Capacitor.Plugins.Geolocation.requestPermissions();
+          console.log("✅ GPS permission:", geoPerms.location);
+        } catch (e) {
+          console.warn("⚠️ GPS permission request failed:", e);
+        }
+
+        // Request camera permission (needed for video)
+        try {
+          const camPerms = await Capacitor.Plugins.Camera.checkPermissions();
+          if (camPerms.camera !== 'granted') {
+            await Capacitor.Plugins.Camera.requestPermissions();
+            console.log("✅ Camera permission granted");
+          }
+        } catch (e) {
+          console.warn("⚠️ Camera permission request failed:", e);
+        }
+
+        // Request microphone through a dummy media stream
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          stream.getTracks().forEach(t => t.stop());
+          console.log("✅ Microphone permission granted");
+        } catch (e) {
+          console.warn("⚠️ Microphone permission request failed:", e);
+        }
+
+        // Request wake lock permission
+        try {
+          if ('wakeLock' in navigator) {
+            await (navigator.wakeLock as any).request('screen');
+            console.log("✅ Wake lock permission granted");
+          }
+        } catch (e) {
+          console.warn("⚠️ Wake lock permission request failed:", e);
+        }
+
+        console.log("✅ All permissions requested");
+      } catch (e) {
+        console.error("❌ Permission request error:", e);
+      }
+    };
+
+    // Delay to ensure Capacitor is fully loaded
+    const timeout = setTimeout(() => {
+      requestAllPermissions();
+    }, 500);
+
+    return () => clearTimeout(timeout);
+  }, [isPwa]);
+
   // Check stored consent
   useEffect(() => {
     const stored = localStorage.getItem("kas_screen_lock_consent");
-    setConsentGiven(stored === "true");
+    // Auto-consent if not explicitly stored (assume agreement from onboarding)
+    if (stored === null) {
+      localStorage.setItem("kas_screen_lock_consent", "true");
+      setConsentGiven(true);
+    } else {
+      setConsentGiven(stored === "true");
+    }
   }, []);
 
   const cameraStreamRef = useRef<MediaStream | null>(null);
