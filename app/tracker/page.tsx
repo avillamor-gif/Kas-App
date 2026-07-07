@@ -486,6 +486,18 @@ export default function TrackerPage() {
     sleepLockPollRef.current = setInterval(check, 10_000);
   }, []);
 
+  const openLocationSettings = useCallback(async () => {
+    const Capacitor = (window as any).Capacitor;
+    if (Capacitor?.Plugins?.App) {
+      try {
+        // Open Android Location settings
+        await Capacitor.Plugins.App.openUrl({ url: 'android.settings.LOCATION_SOURCE_SETTINGS' });
+      } catch (e) {
+        console.warn("Could not open settings:", e);
+      }
+    }
+  }, []);
+
   const stopSleepLockPoll = useCallback(() => {
     if (sleepLockPollRef.current) clearInterval(sleepLockPollRef.current);
     setSleepLocked(false);
@@ -586,8 +598,8 @@ export default function TrackerPage() {
             if (locationIntervalRef.current) clearInterval(locationIntervalRef.current);
           } else if (err.code === 2) {
             // POSITION_UNAVAILABLE - GPS/Location Service is OFF on phone
-            addLog(`⚠️ Location Service disabled (code ${err.code}) — retrying`);
-            setTimeout(startWatch, 3000);
+            addLog(`⚠️ Opening Location settings...`);
+            openLocationSettings();
           } else if (err.code === 3) {
             // TIMEOUT - taking too long to get position
             addLog(`⚠️ GPS timeout (code ${err.code}) — retrying`);
