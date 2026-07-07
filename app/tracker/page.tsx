@@ -316,6 +316,28 @@ export default function TrackerPage() {
     checkSessionAndAutoLogin();
   }, [isPwa]);
 
+  // Auto-request location permissions when app loads
+  useEffect(() => {
+    const requestLocationPermissions = async () => {
+      const Capacitor = (window as any).Capacitor;
+      if (Capacitor?.Plugins?.Geolocation) {
+        try {
+          console.log("📍 Requesting location permissions...");
+          const permResult = await Capacitor.Plugins.Geolocation.requestPermissions();
+          if (permResult.location === 'granted') {
+            console.log("✅ Location permission granted");
+          } else {
+            console.log("⚠️ Location permission denied");
+          }
+        } catch (e) {
+          console.warn("⚠️ Failed to request location permissions:", e);
+        }
+      }
+    };
+
+    requestLocationPermissions();
+  }, []);
+
   const handleInlineLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError("");
@@ -497,36 +519,18 @@ export default function TrackerPage() {
       return;
     }
 
-    // Request location permission via Capacitor (native Android/iOS)
-    const Capacitor = (window as any).Capacitor;
-    if (Capacitor?.Plugins?.Geolocation) {
-      try {
-        addLog("📍 Requesting location permission...");
-        const permResult = await Capacitor.Plugins.Geolocation.requestPermissions();
-        if (permResult.location !== 'granted') {
-          setError("❌ Location permission denied. Please grant location access in phone settings.");
-          addLog("❌ Location permission not granted by user");
-          return;
-        }
-        addLog("✅ Location permission granted");
-      } catch (e) {
-        console.warn("⚠️ Failed to request location permissions via Capacitor:", e);
-        // Continue with browser geolocation anyway
+    // Check if location permission was already granted (requested on app load)
+    try {
+      const permStatus = await navigator.permissions.query({ name: 'geolocation' });
+      if (permStatus.state === 'denied') {
+        setError("❌ Location permission denied. Enable it in phone settings → Apps → [Browser] → Permissions → Location");
+        addLog("❌ Location permission denied in settings");
+        return;
       }
-    } else {
-      // Fallback: Check browser permission status
-      try {
-        const permStatus = await navigator.permissions.query({ name: 'geolocation' });
-        if (permStatus.state === 'denied') {
-          setError("❌ Location permission denied. Enable it in phone settings → Apps → [Browser] → Permissions → Location");
-          addLog("❌ Location permission denied in settings");
-          return;
-        }
-        addLog(`📍 Permission status: ${permStatus.state}`);
-      } catch (e) {
-        // Permissions API might not be supported, continue anyway
-        console.log("Permissions API not available:", e);
-      }
+      addLog(`📍 Permission status: ${permStatus.state}`);
+    } catch (e) {
+      // Permissions API might not be supported, continue anyway
+      console.log("Permissions API not available:", e);
     }
 
     setStatus("active");

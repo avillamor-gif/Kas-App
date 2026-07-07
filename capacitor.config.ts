@@ -3,7 +3,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   appId: 'com.kas.tracker',
   appName: 'KAS Family Tracker',
-  webDir: 'public',
+  webDir: 'out',
   server: {
     androidScheme: 'https',
     url: 'https://kastracker.avillamor.com/tracker', // Production domain
@@ -11,7 +11,8 @@ const config: CapacitorConfig = {
   },
   plugins: {
     SplashScreen: {
-      launchShowDuration: 2000
+      launchShowDuration: 2000,
+      launchAutoHide: true
     },
     Geolocation: {
       permissions: ['location']
