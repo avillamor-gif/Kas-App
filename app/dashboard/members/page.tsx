@@ -48,6 +48,7 @@ export default function MembersPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"grid" | "list">("grid");
+  const [apiError, setApiError] = useState("");
 
   // Add member form
   const [showAdd, setShowAdd] = useState(false);
@@ -67,9 +68,25 @@ export default function MembersPage() {
   const [qrMode, setQrMode] = useState<"login" | "download">("login");
 
   const fetchMembers = useCallback(async () => {
-    const res = await fetch("/api/users");
-    if (res.ok) setMembers(await res.json());
-    setLoading(false);
+    try {
+      setApiError("");
+      const res = await fetch("/api/users");
+      if (!res.ok) {
+        const errorData = await res.json();
+        setApiError(`API Error: ${res.status} - ${errorData.error || "Unknown error"}`);
+        console.error("❌ Failed to fetch members:", { status: res.status, error: errorData });
+      } else {
+        const data = await res.json();
+        console.log("✅ Fetched members:", data);
+        setMembers(data);
+      }
+    } catch (e) {
+      const errMsg = e instanceof Error ? e.message : String(e);
+      setApiError(`Network Error: ${errMsg}`);
+      console.error("❌ Network error fetching members:", e);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { fetchMembers(); }, [fetchMembers]);
@@ -301,11 +318,18 @@ export default function MembersPage() {
 
       {/* Member list */}
       <div className="flex-1 overflow-y-auto px-6 py-4">
+        {apiError && (
+          <div className="bg-red-900/40 border border-red-700 text-red-300 text-sm rounded-lg px-4 py-3 mb-4">
+            <p className="font-medium">⚠️ Error loading members</p>
+            <p className="text-xs mt-1 font-mono">{apiError}</p>
+          </div>
+        )}
+
         {loading && (
           <p className="text-gray-600 text-sm text-center py-12">Loading members…</p>
         )}
 
-        {!loading && filtered.length === 0 && (
+        {!loading && filtered.length === 0 && !apiError && (
           <div className="text-center py-16">
             <User className="w-10 h-10 text-gray-700 mx-auto mb-3" />
             <p className="text-gray-500 text-sm">No members found</p>
